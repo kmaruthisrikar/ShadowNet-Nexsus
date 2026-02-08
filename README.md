@@ -249,6 +249,18 @@ class ProcessMonitor:
             self.start_wmi_monitor()  # Instant Event-driven
         else:
             self.start_unix_monitor() # High-frequency polling
+
+### 2. Behavioral Guard (`core/behavior_monitor.py`)
+
+**Purpose**: Detects non-process based anomalies (Keyloggers, Bot inputs).
+
+**Technical Implementation**:
+- **Jitter Analysis**: Calculates Standard Deviation of keystroke timings.
+- **Thresholds**: 
+  - `< 10ms variance`: Flagged as MECHANICAL/BOT
+  - `> 50ms variance`: Classified as HUMAN
+- **AI Verification**: Sends suspicious patterns to Gemini for 2nd opinion.
+            self.start_unix_monitor() # High-frequency polling
 ```
         
         # Subscribe to process creation events
@@ -1480,5 +1492,5 @@ The above copyright notice and this permission notice shall be included in all c
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-**ShadowNet Nexus v4.0** - *Defending the Defenders*  
+**ShadowNet Nexus v4.0.1** - *Defending the Defenders*  
 © 2026 ShadowNet Nexus Project. All rights reserved.

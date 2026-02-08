@@ -40,6 +40,7 @@ def run_test(name, command, description):
 
 def main():
     import platform
+    import datetime
     os_type = platform.system().lower()
     
     print_banner()
@@ -104,9 +105,37 @@ def main():
         if 'error' in res:
              print(f"   ⚠️  AI Analysis delayed (Quota/Network): {res['error']}")
         else:
-            verdict = "🚨 BOT/KEYLOGGER" if not res.get('is_human') else "Human"
+            is_bot = not res.get('is_human')
+            verdict = "🚨 BOT/KEYLOGGER" if is_bot else "Human"
             print(f"   ✅ [AI VERDICT] {verdict} (Confidence: {res.get('confidence', 0):.2%})")
             print(f"   Reasoning: {res.get('assessment', 'N/A')[:60]}...")
+            
+            if is_bot:
+                print("\n   [STEP 3] Generating Forensic Report & Snapshot...")
+                from core.emergency_snapshot import EmergencySnapshotEngine
+                from core.incident_report_generator import IncidentReportGenerator
+                
+                # 1. Take Emergency Snapshot
+                snapshot_engine = EmergencySnapshotEngine("./evidence")
+                snapshot_id = snapshot_engine.emergency_snapshot(
+                    threat_type="behavioral_keylogger",
+                    command="BEHAVIORAL_DETECTED",
+                    process_info={'name': 'python.exe', 'pid': os.getpid(), 'args': 'simulated_keylogger'}
+                )
+                
+                # 2. Generate Incident Report
+                reporter = IncidentReportGenerator("./evidence")
+                report_path = reporter.generate_incident_report({
+                    'incident_id': f"INC-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}-KEYLOG",
+                    'threat_type': 'behavioral_keylogger',
+                    'command': 'Keystroke Pattern Anomaly',
+                    'process_info': {'name': 'python.exe', 'pid': os.getpid(), 'user': os.getlogin()},
+                    'snapshot_id': snapshot_id,
+                    'detection_time': datetime.datetime.now().isoformat(),
+                    'ai_analysis': res,
+                    'severity': 'HIGH'
+                })
+                print(f"   📄 Report Generated: {report_path}")
 
     except Exception as e:
         print(f"   ⚠️  Behavioral Test Error: {e}")

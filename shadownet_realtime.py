@@ -45,6 +45,7 @@ from core.alert_manager import AlertManager, AlertChannel, AlertSeverity
 from core.gemini_report_generator import GeminiReportGenerator
 from core.incident_report_generator import IncidentReportGenerator
 from core.gemini_behavior_analyzer import GeminiBehaviorAnalyzer
+from core.behavior_monitor import BehavioralMonitor
 
 # --- Load Configuration ---
 config_path = Path(__file__).parent / 'config' / 'config.yaml'
@@ -239,12 +240,31 @@ def on_suspicious_command(command: str, process_info: dict):
     
     print(f"{'='*80}\n")
 
+def on_behavioral_alert(alert_data: dict):
+    """Handle alerts from the Behavioral Monitor (Keyloggers/Bots)"""
+    print(f"\n🚨 [BEHAVIORAL ALERT] {alert_data['command']}")
+    print(f"   Severity: {alert_data['severity']}")
+    print(f"   AI Verdict: {alert_data['ai_analysis'].get('input_type', 'Unknown')}")
+    
+    # Push to same incident queue
+    incident_queue.put({
+        'command': alert_data['command'],
+        'matched_keywords': ['behavioral_anomaly'],
+        'ai_res': alert_data['ai_analysis'],
+        'process_info': alert_data['process_info'],
+        'is_critical': True
+    })
+
 # --- Start System ---
 if __name__ == "__main__":
     try:
         from core.process_monitor import ProcessMonitor
         monitor = ProcessMonitor(callback=on_suspicious_command, suspicious_keywords=keywords)
         monitor.start_monitoring()
+        
+        # Start Behavioral Guard
+        behavior_guard = BehavioralMonitor(analyzer=behavior_analyzer, callback=on_behavioral_alert)
+        behavior_guard.start_monitoring()
         
         print("\n" + "="*80)
         print("✅ SHADOWNET v4.0 IS NOW ACTIVE (Cross-Platform Mode)!")

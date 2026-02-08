@@ -1,0 +1,153 @@
+/* Additional Component Styles */
+
+.badge {
+    padding: 4px 12px;
+    background: rgba(0, 204, 255, 0.2);
+    border: 1px solid var(--neon-blue);
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--neon-blue);
+}
+
+.threat-list {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+/* Alert Panel */
+.alert-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.alert-item {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: var(--radius-sm);
+    border-left: 3px solid var(--neon-blue);
+    transition: all 0.3s ease;
+}
+
+.alert-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+    transform: translateX(5px);
+}
+
+.alert-item.critical {
+    border-left-color: var(--critical);
+}
+
+.alert-item.high {
+    border-left-color: var(--high);
+}
+
+.alert-item.medium {
+    border-left-color: var(--medium);
+}
+
+.alert-icon {
+    font-size: 1.5rem;
+}
+
+.alert-content {
+    flex: 1;
+}
+
+.alert-title {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.alert-time {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+/* Network Map */
+.network-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.network-stat {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: var(--radius-sm);
+    transition: all 0.3s ease;
+}
+
+.network-stat:hover {
+    background: rgba(255, 255, 255, 0.08);
+    transform: translateY(-2px);
+}
+
+.stat-icon {
+    font-size: 2rem;
+}
+
+.stat-info {
+    flex: 1;
+}
+
+.stat-number {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--neon-blue);
+    margin-bottom: 4px;
+}
+
+.stat-text {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.network-activity {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.activity-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: var(--radius-sm);
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.activity-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.activity-dot.green {
+    background: var(--neon-green);
+    box-shadow: 0 0 10px var(--neon-green);
+}
+
+.activity-dot.red {
+    background: var(--neon-red);
+    box-shadow: 0 0 10px var(--neon-red);
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.activity-dot.yellow {
+    background: var(--neon-yellow);
+    box-shadow: 0 0 10px var(--neon-yellow);
+}

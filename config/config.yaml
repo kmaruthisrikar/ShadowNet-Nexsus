@@ -1,0 +1,97 @@
+# ShadowNet Nexus Configuration File
+
+shadownet:
+  # Gemini API Configuration
+  models:
+    fast: gemini-2.5-flash        # User preferred
+    intelligent: gemini-2.5-flash   # User preferred
+  
+  # Evidence Vault Settings
+  evidence_vault:
+    path: ./evidence
+    retention_days: 90
+    encryption: true
+    max_size_gb: 100
+  
+  # Monitoring Configuration
+  monitoring:
+    check_interval_seconds: 120
+    enable_process_monitoring: true
+    enable_file_monitoring: true
+    enable_network_monitoring: true # Enabled for real-world protection
+    
+    # Suspicious keywords for pre-filtering (reduces API calls)
+    suspicious_keywords:
+      - wevtutil
+      - vssadmin
+      - cipher
+      - timestomp
+      - bcdedit
+      - Clear-EventLog
+      - sdelete
+      - bleachbit
+      - ccleaner
+      - mimikatz
+      - procdump
+      - dumpert
+      - bleeding-edge
+      - mshta
+      - certutil
+      - bitsadmin
+      - EncodedCommand
+      - -Enc
+      - -e 
+      - Invoke-Expression
+      - iex
+      - powershell -w hidden
+      - regsvr32
+      - wmic
+      - scrcons
+      - schtasks /create
+      - curl -L
+      - wget
+      - bash -i
+      - nc -e
+      - netcat
+      - /dev/tcp
+      - lsass
+      - taskmgr
+      - samlib
+      - ntds.dit
+      - mountvol
+      - fsutil usn deletejournal
+  
+  # Alert Configuration
+  alerting:
+    enable_slack: false
+    slack_webhook: ""
+    
+    enable_email: false
+    email_recipients:
+      - security@company.com
+    
+    enable_console: true
+    
+    # Alert thresholds
+    min_confidence_for_alert: 0.7
+    min_severity_for_notification: HIGH
+  
+  # API Rate Limiting & Optimization
+  rate_limiting:
+    max_api_calls_per_minute: 20  # Stay under free tier limit (60/min)
+    cache_results: true
+    cache_ttl_seconds: 10
+    batch_non_urgent: true
+  
+  # Threat Intelligence
+  threat_intel:
+    enable_mitre_attack: true
+    enable_threat_actor_db: true
+    update_interval_hours: 24
+  
+  # Logging
+  logging:
+    level: INFO
+    file: ./logs/shadownet.log
+    max_size_mb: 100
+    backup_count: 5

@@ -448,6 +448,38 @@ def analyze_keystroke_pattern(self, keystroke_timings: List[int]):
 **Statistical Analysis**:
 - **Standard Deviation**: Human > 50ms, Bot < 10ms
 - **Mean Interval**: Human 150-200ms, Bot < 50ms
+
+---
+
+### 5. Evidence Vault & Chain of Custody (`utils/evidence_vault.py`)
+
+**Purpose**: Secure preservation and legal admissibility assurance.
+
+**Key Features**:
+*   **Cryptographic Hashing**: Every report and artifact is SHA-256 hashed immediately upon creation.
+*   **Tamper-Evident Logs**: All actions are recorded in `evidence/chain_of_custody.json`.
+*   **Automated Packaging**: Raw evidence snapshots are automatically zipped and stored in `evidence/artifacts`.
+
+**Chain of Custody Record Format**:
+```json
+{
+  "evidence_id": "REP-20260208-233225",
+  "incident_id": "INC-20260208-233225",
+  "evidence_type": "forensic",
+  "timestamp": "2026-02-08T23:32:25.265121",
+  "file_path": "evidence\\reports\\INC-20260208-233225_forensic.md",
+  "hash_sha256": "8f4b...",
+  "collected_by": "ShadowNet Nexus",
+  "action": "report_generated"
+}
+```
+
+**Artifact Preservation Workflow**:
+1.  **Capture**: Emergency Snapshot triggered (Ram/Logs/Network).
+2.  **Package**: Folder zipped to `RAW_EVIDENCE_SNAPSHOT.zip`.
+3.  **Hash**: SHA-256 calculated for the zip archive.
+4.  **Vault**: Zip moved to `evidence/artifacts/<IncidentID>/`.
+5.  **Log**: Entry added to Chain of Custody.
 - **Coefficient of Variation**: Human > 0.3, Bot < 0.1
 
 **User Activity Baseline**:
@@ -1492,5 +1524,5 @@ The above copyright notice and this permission notice shall be included in all c
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-**ShadowNet Nexus v4.0.1** - *Defending the Defenders*  
+**ShadowNet Nexus v4.1** - *Defending the Defenders*  
 © 2026 ShadowNet Nexus Project. All rights reserved.

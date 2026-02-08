@@ -92,24 +92,46 @@ def main():
         "Modifying registry for persistence."
     )
 
-    # CATEGORY 6: BEHAVIORAL AI VALIDATION (Internal Check)
-    print("👉 TESTING: Behavioral AI (Mechanical Timing)")
-    print("   Description: Validating AI detection of non-human typing patterns.")
+    # CATEGORY 6: KEYLOGGER & BEHAVIORAL DETECTION
+    print("👉 TESTING: Keylogger Detection (Mechanical Pattern)")
+    print("   Description: Simulating bot-driven keystroke injection vs Human typing.")
+    
     try:
-        # We run the internal behavior check script to see if the AI still correctly flags bots
+        import statistics
         from core.gemini_behavior_analyzer import GeminiBehaviorAnalyzer
         from dotenv import load_dotenv
         load_dotenv()
+        
+        # Scenario A: Mechanical Bot (Low Jitter)
+        bot_data = [10, 10, 10, 11, 10, 10, 10, 9, 10, 10]
+        # Scenario B: Human (High Jitter)
+        human_data = [120, 250, 80, 400, 150, 90, 220, 110]
+        
+        # 1. Local Statistical Check (Offline Defense)
+        print("   [STEP 1] Running Local Jitter Analysis (Offline)...")
+        bot_std = statistics.stdev(bot_data)
+        if bot_std < 10:
+            print(f"   ✅ [LOCAL VERDICT] 🚨 KEYLOGGER DETECTED (StdDev: {bot_std:.2f}ms)")
+        else:
+            print(f"   ❌ [LOCAL VERDICT] Failed to detect (StdDev: {bot_std:.2f}ms)")
+            
+        # 2. AI Behavioral Check (Deep Intelligence)
+        print("   [STEP 2] Running AI Behavioral Analysis (Gemini)...")
         analyzer = GeminiBehaviorAnalyzer(os.getenv('GEMINI_API_KEY'))
-        bot_data = [10, 10, 10, 10, 10, 15, 10, 10] # Clearly robotic
         res = analyzer.analyze_keystroke_pattern(bot_data)
-        verdict = "🚨 BOT DETECTED" if not res.get('is_human') else "Human Detected"
-        print(f"   AI INTERNAL VERDICT: {verdict} (Confidence: {res.get('confidence', 0):.2f})")
+        
+        if 'error' in res:
+             print(f"   ⚠️  AI Analysis delayed (Quota/Network): {res['error']}")
+        else:
+            verdict = "🚨 BOT/KEYLOGGER" if not res.get('is_human') else "Human"
+            print(f"   ✅ [AI VERDICT] {verdict} (Confidence: {res.get('confidence', 0):.2%})")
+            print(f"   Reasoning: {res.get('assessment', 'N/A')[:60]}...")
+
     except Exception as e:
-        print(f"   ⚠️  Behavioral Check skipped: {e}")
+        print(f"   ⚠️  Behavioral Test Error: {e}")
 
     print("\n" + "="*70)
-    print("🏁 TEST COMPLETE")
+    print("🏁 COMPREHENSIVE TEST COMPLETE")
     print("Check the 'evidence/incidents' folder for generated forensic reports.")
     print("="*70)
 

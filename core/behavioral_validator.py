@@ -24,7 +24,7 @@ def test_behavior():
         print("❌ Error: GEMINI_API_KEY not found.")
         return
 
-    from core.gemini_behavior_analyzer import GeminiBehaviorAnalyzer
+    from .gemini_behavior_analyzer import GeminiBehaviorAnalyzer
     analyzer = GeminiBehaviorAnalyzer(api_key)
 
     # 1. Simulate HUMAN TYPING (High variance, natural jitter)

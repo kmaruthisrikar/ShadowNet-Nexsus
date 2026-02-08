@@ -13,6 +13,8 @@ from .siem_integration import SIEMIntegration
 from .wmi_process_monitor import WMIProcessMonitor
 from .incident_report_generator import IncidentReportGenerator
 
+from .behavioral_validator import test_behavior as BehavioralValidator
+
 __all__ = [
     'GeminiCommandAnalyzer',
     'GeminiBehaviorAnalyzer',
@@ -22,5 +24,6 @@ __all__ = [
     'AlertManager',
     'SIEMIntegration',
     'WMIProcessMonitor',
-    'IncidentReportGenerator'
+    'IncidentReportGenerator',
+    'BehavioralValidator'
 ]

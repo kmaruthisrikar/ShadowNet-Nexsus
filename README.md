@@ -60,98 +60,6 @@ ShadowNet Nexus v4.0 is an advanced cyber forensics platform designed to detect,
 
 ### High-Level Architecture Diagram
 ![System Architecture](resources/system_architecture.png)
-┌─────────────────────────────────────────────────────────────────┐
-│                    CROSS-PLATFORM KERNEL LAYER                  │
-│  ┌───────────────────────┬───────────────────────┬──────────────┐
-│  │    WINDOWS (WMI)     │     LINUX (procfs)    │  MAC (sysctl)│
-│  └──────────┬────────────┴───────────┬───────────┴──────┬───────┘
-└─────────────┼────────────────────────┼──────────────────┼───────┘
-              │ 0ms Events             │ 10ms Polling     │ 10ms  
-              ▼                        ▼                  ▼
-┌─────────────────────────────────────────────────────────────────┐
-│              DETECTION & ORCHESTRATION LAYER                    │
-│                                                                 │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │              Universal Process Monitor Factory            │  │
-│  │        (Auto-selects WMI, psutil, or sys-polling)        │  │
-│  └───────────────────────────┬──────────────────────────────┘  │
-│          │                                                      │
-│          ▼                                                      │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │           DEDUPLICATION & FILTERING ENGINE               │  │
-│  │  • LRU Command Cache (30s window)                        │  │
-│  │  • Keyword Pattern Matching                              │  │
-│  │  • Process Name Analysis                                 │  │
-│  └───────┬──────────────────────────────────────────────────┘  │
-└──────────┼──────────────────────────────────────────────────────┘
-           │ Suspicious Command Detected
-           ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                   AI INTELLIGENCE LAYER                         │
-│                                                                 │
-│  ┌────────────────────┐    ┌──────────────────────────────┐    │
-│  │ Command Decoder    │───▶│  Gemini Command Analyzer     │    │
-│  │ • Base64 Decode    │    │  • Threat Classification     │    │
-│  │ • Hex Decode       │    │  • MITRE ATT&CK Mapping     │    │
-│  │ • Binary Detection │    │  • Confidence Scoring        │    │
-│  └────────────────────┘    └──────────┬───────────────────┘    │
-│                                       │                         │
-│  ┌────────────────────────────────────┴───────────────────┐    │
-│  │         Gemini Behavior Analyzer                       │    │
-│  │  • Keystroke Pattern Analysis                          │    │
-│  │  • User Activity Profiling                             │    │
-│  │  • Attack Sequence Detection                           │    │
-│  └────────────────────┬───────────────────────────────────┘    │
-└────────────────────────┼────────────────────────────────────────┘
-                         │ AI Verdict: THREAT | BENIGN
-                         ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                EVIDENCE PRESERVATION LAYER                      │
-│                                                                 │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │         Emergency Snapshot Engine (<100ms)               │  │
-│  │                                                          │  │
-│  │  Parallel Thread Execution:                             │  │
-│  │  ┌──────────────┐  ┌───────────────┐  ┌─────────────┐  │  │
-│  │  │ Event Logs   │  │ Process State │  │ Network     │  │  │
-│  │  │ (Security,   │  │ (All PIDs +   │  │ Connections │  │  │
-│  │  │  System,     │  │  Commands)    │  │ (TCP/UDP)   │  │  │
-│  │  │  Application)│  └───────────────┘  └─────────────┘  │  │
-│  │  └──────────────┘                                       │  │
-│  │  ┌──────────────┐  ┌───────────────┐                   │  │
-│  │  │ VSS State    │  │ File Metadata │                   │  │
-│  │  │ (Shadow      │  │ (Directory    │                   │  │
-│  │  │  Copies)     │  │  Listings)    │                   │  │
-│  │  └──────────────┘  └───────────────┘                   │  │
-│  └──────────────────────┬───────────────────────────────────┘  │
-└────────────────────────┼────────────────────────────────────────┘
-                         │ Evidence Captured
-                         ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    REPORTING & ALERTING LAYER                   │
-│                                                                 │
-│  ┌──────────────────┐    ┌─────────────────┐                   │
-│  │ Incident Report  │    │  Alert Manager  │                   │
-│  │ Generator        │    │  • Console      │                   │
-│  │ • Forensic MD    │    │  • Slack        │                   │
-│  │ • JSON Metadata  │    │  • Email        │                   │
-│  │ • Evidence Index │    │  • Discord      │                   │
-│  └──────────────────┘    └─────────────────┘                   │
-│                                                                 │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │             SIEM Integration (CEF Format)                │  │
-│  │  • Splunk HEC   • QRadar   • Elastic   • Syslog         │  │
-│  └──────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-                         │
-                         ▼
-                  ┌─────────────┐
-                  │   Evidence  │
-                  │    Vault    │
-                  │  (SHA-256   │
-                  │   Hashed)   │
-                  └─────────────┘
-```
 
 ### Component Interaction Flow
 
@@ -1165,8 +1073,8 @@ SLACK_WEBHOOK_URL=https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXX
 
 **1. Clone Repository**:
 ```bash
-git clone https://github.com/yourusername/shadownet-nexus.git
-cd shadownet-nexus
+git clone https://github.com/kmaruthisrikar/ShadowNet-Nexsus.git
+cd ShadowNet-Nexsus
 ```
 
 **2. Create Virtual Environment**:

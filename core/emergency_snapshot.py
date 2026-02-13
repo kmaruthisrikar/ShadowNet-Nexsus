@@ -71,14 +71,14 @@ class EmergencySnapshotEngine:
         threads = []
         evidence_types = []
         
-        if threat_type == 'log_clearing':
-            threads.append(threading.Thread(
-                target=self._snapshot_event_logs,
-                args=(snapshot_dir,)
-            ))
-            evidence_types.append('event_logs')
+        # ALWAYS capture event logs for ALL threats (critical forensic evidence)
+        threads.append(threading.Thread(
+            target=self._snapshot_event_logs,
+            args=(snapshot_dir,)
+        ))
+        evidence_types.append('event_logs')
         
-        if threat_type == 'vss_deletion':
+        if threat_type == 'vss_deletion' or threat_type == 'vss_manipulation':
             threads.append(threading.Thread(
                 target=self._snapshot_vss_state,
                 args=(snapshot_dir,)
@@ -143,42 +143,23 @@ class EmergencySnapshotEngine:
             print(f"   ⚠️ Log snapshot failed: {str(e)}")
     
     def _snapshot_windows_event_logs(self, snapshot_dir: Path):
-        """Snapshot Windows event logs"""
+        """Snapshot Windows event logs - ONLY .evtx files"""
         logs_dir = snapshot_dir / "event_logs"
         logs_dir.mkdir(exist_ok=True)
         
         log_types = ['Security', 'System', 'Application']
-        captured_count = 0
         
         for log_type in log_types:
             try:
                 output_file = logs_dir / f"{log_type}.evtx"
                 # Export event log (requires admin)
-                result = subprocess.run([
+                subprocess.run([
                     'wevtutil', 'epl', log_type, str(output_file)
-                ], capture_output=True, timeout=5, text=True)
+                ], capture_output=True, timeout=5, text=True, check=False)
                 
-                if result.returncode == 0 and output_file.exists():
-                    captured_count += 1
-                else:
-                    # Failed - try to get metadata instead
-                    self._capture_log_metadata(log_type, logs_dir)
-                    
-            except Exception as e:
-                # Fallback: capture log metadata
-                self._capture_log_metadata(log_type, logs_dir)
-        
-        # If no logs captured, create a notice file
-        if captured_count == 0:
-            notice_file = logs_dir / "README.txt"
-            with open(notice_file, 'w') as f:
-                f.write("EVENT LOG CAPTURE NOTICE\n")
-                f.write("=" * 50 + "\n\n")
-                f.write("Full event log export requires Administrator privileges.\n\n")
-                f.write("To capture complete .evtx files:\n")
-                f.write("1. Right-click on the script\n")
-                f.write("2. Select 'Run as Administrator'\n\n")
-                f.write("Current capture: Log metadata only (see *_metadata.txt files)\n")
+            except Exception:
+                # Silently skip if export fails
+                pass
     
     def _capture_log_metadata(self, log_type: str, logs_dir: Path):
         """Capture event log metadata when full export isn't available"""

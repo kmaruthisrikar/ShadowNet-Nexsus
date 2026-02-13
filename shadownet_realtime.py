@@ -61,7 +61,12 @@ print("!"*80 + "\n")
 
 # 1. Evidence Engine
 capture_net = config['shadownet']['monitoring'].get('enable_network_monitoring', True)
-evidence_collector = ProactiveEvidenceCollector(evidence_vault_path="./evidence", enabled=True, capture_network=capture_net)
+evidence_collector = ProactiveEvidenceCollector(
+    evidence_vault_path="./evidence", 
+    enabled=True, 
+    capture_network=capture_net,
+    suspicious_keywords=keywords  # Pass ALL keywords from config
+)
 print(f"   [OK] Evidence Vault: {evidence_collector.os_type.upper()} Mode")
 
 # 2. AI Command Engine

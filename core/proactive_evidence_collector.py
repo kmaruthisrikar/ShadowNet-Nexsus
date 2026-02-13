@@ -7,7 +7,7 @@ Cross-platform support with automatic OS detection
 import time
 import threading
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from pathlib import Path
 
 from .emergency_snapshot import EmergencySnapshotEngine
@@ -26,7 +26,7 @@ class ProactiveEvidenceCollector:
     The "security camera backup" feature
     """
     
-    def __init__(self, evidence_vault_path: str = "./evidence", enabled: bool = True, capture_network: bool = True):
+    def __init__(self, evidence_vault_path: str = "./evidence", enabled: bool = True, capture_network: bool = True, suspicious_keywords: List[str] = None):
         """
         Initialize Proactive Evidence Collector
         
@@ -34,10 +34,12 @@ class ProactiveEvidenceCollector:
             evidence_vault_path: Path to evidence vault
             enabled: Enable proactive collection (requires admin/root)
             capture_network: Whether to capture network connections during a snapshot
+            suspicious_keywords: List of keywords from config.yaml to monitor
         """
         print(f"[DEBUG] ProactiveEvidenceCollector.__init__ called with enabled={enabled}")
         
         self.evidence_vault_path = evidence_vault_path
+        self.suspicious_keywords = suspicious_keywords or []
         
         # Initialize dependencies
         if not HAS_DEPENDENCIES:
@@ -54,7 +56,7 @@ class ProactiveEvidenceCollector:
         self.os_type = os_detector.os_type
         self.capabilities = os_detector.get_capabilities()
         
-        # Threat type mapping
+        # Threat type mapping - NOW DYNAMIC FROM CONFIG
         self.threat_patterns = self._build_threat_patterns()
         
         # Statistics
@@ -68,87 +70,58 @@ class ProactiveEvidenceCollector:
             print("   Some evidence types may not be accessible without admin/root privileges")
         else:
             print(f"✅ Proactive Evidence Collector: ENABLED ({self.os_type.upper()}) - FULL MODE")
+        
+        print(f"   📋 Monitoring {len(self.threat_patterns)} threat patterns from config.yaml")
     
     def _build_threat_patterns(self) -> Dict[str, Dict[str, Any]]:
-        """Build OS-specific threat patterns"""
+        """Build threat patterns dynamically from config.yaml keywords"""
         patterns = {}
         
-        if os_detector.is_windows:
-            patterns.update({
-                'wevtutil': {
-                    'threat_type': 'log_clearing',
-                    'severity': 'CRITICAL',
-                    'description': 'Windows Event Log manipulation'
-                },
-                'vssadmin delete': {
-                    'threat_type': 'vss_deletion',
-                    'severity': 'CRITICAL',
-                    'description': 'Volume Shadow Copy deletion'
-                },
-                'cipher /w': {
-                    'threat_type': 'file_wiping',
-                    'severity': 'HIGH',
-                    'description': 'Secure file deletion'
-                },
-                'Clear-EventLog': {
-                    'threat_type': 'log_clearing',
-                    'severity': 'CRITICAL',
-                    'description': 'PowerShell event log clearing'
-                },
-                'bcdedit': {
-                    'threat_type': 'boot_config',
-                    'severity': 'HIGH',
-                    'description': 'Boot configuration modification'
-                }
-            })
-        
-        if os_detector.is_linux:
-            patterns.update({
-                'shred': {
-                    'threat_type': 'file_wiping',
-                    'severity': 'HIGH',
-                    'description': 'Secure file deletion'
-                },
-                'history -c': {
-                    'threat_type': 'log_clearing',
-                    'severity': 'MEDIUM',
-                    'description': 'Command history clearing'
-                },
-                'rm -rf /var/log': {
-                    'threat_type': 'log_clearing',
-                    'severity': 'CRITICAL',
-                    'description': 'System log deletion'
-                },
-                'journalctl --vacuum': {
-                    'threat_type': 'log_clearing',
-                    'severity': 'HIGH',
-                    'description': 'Journal log cleanup'
-                },
-                'auditctl -D': {
-                    'threat_type': 'log_clearing',
-                    'severity': 'CRITICAL',
-                    'description': 'Audit log deletion'
-                }
-            })
-        
-        if os_detector.is_mac:
-            patterns.update({
-                'srm': {
-                    'threat_type': 'file_wiping',
-                    'severity': 'HIGH',
-                    'description': 'Secure file deletion'
-                },
-                'log erase': {
-                    'threat_type': 'log_clearing',
-                    'severity': 'CRITICAL',
-                    'description': 'System log erasure'
-                },
-                'rm -rf /var/log': {
-                    'threat_type': 'log_clearing',
-                    'severity': 'CRITICAL',
-                    'description': 'System log deletion'
-                }
-            })
+        # Automatically create patterns for ALL keywords from config
+        for keyword in self.suspicious_keywords:
+            keyword_lower = keyword.lower()
+            
+            # Classify threat type based on keyword
+            if any(x in keyword_lower for x in ['wevtutil', 'clear-eventlog', 'log', 'history', 'journal']):
+                threat_type = 'log_clearing'
+                severity = 'CRITICAL'
+            elif any(x in keyword_lower for x in ['vss', 'shadow']):
+                threat_type = 'vss_manipulation'
+                severity = 'CRITICAL'
+            elif any(x in keyword_lower for x in ['cipher', 'sdelete', 'shred', 'wipe', 'bleach', 'ccleaner']):
+                threat_type = 'file_wiping'
+                severity = 'HIGH'
+            elif any(x in keyword_lower for x in ['mimikatz', 'procdump', 'dumpert', 'lsass', 'ntds', 'samlib']):
+                threat_type = 'credential_theft'
+                severity = 'CRITICAL'
+            elif any(x in keyword_lower for x in ['encoded', '-enc', 'invoke', 'iex', 'certutil', 'mshta', 'regsvr32']):
+                threat_type = 'obfuscation'
+                severity = 'HIGH'
+            elif any(x in keyword_lower for x in ['schtasks', 'wmic', 'persistence']):
+                threat_type = 'persistence'
+                severity = 'HIGH'
+            elif any(x in keyword_lower for x in ['nc', 'netcat', 'bash -i', '/dev/tcp', 'reverse']):
+                threat_type = 'reverse_shell'
+                severity = 'CRITICAL'
+            elif any(x in keyword_lower for x in ['curl', 'wget', 'bitsadmin', 'download']):
+                threat_type = 'download_execute'
+                severity = 'MEDIUM'
+            elif any(x in keyword_lower for x in ['bcdedit', 'mountvol', 'fsutil']):
+                threat_type = 'system_manipulation'
+                severity = 'HIGH'
+            elif any(x in keyword_lower for x in ['timestomp']):
+                threat_type = 'timestamp_manipulation'
+                severity = 'HIGH'
+            else:
+                # Default for any other suspicious keyword
+                threat_type = 'suspicious_activity'
+                severity = 'MEDIUM'
+            
+            patterns[keyword] = {
+                'threat_type': threat_type,
+                'severity': severity,
+                'description': f'Suspicious keyword detected: {keyword}'
+            }
         
         return patterns
     

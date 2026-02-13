@@ -38,7 +38,7 @@ class EmergencySnapshotEngine:
             process_info: Process metadata
         
         Returns:
-            Snapshot ID
+            Snapshot ID (always returns valid ID, even if some captures fail)
         """
         snapshot_id = f"SNAP-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
         snapshot_dir = self.snapshots_dir / snapshot_id
@@ -51,32 +51,53 @@ class EmergencySnapshotEngine:
         
         start_time = time.time()
         
+        # Create incident metadata file FIRST (always succeeds)
+        metadata_file = snapshot_dir / "incident_metadata.json"
+        import json
+        metadata = {
+            'snapshot_id': snapshot_id,
+            'timestamp': datetime.now().isoformat(),
+            'threat_type': threat_type,
+            'command': command,
+            'process_info': process_info,
+            'os_type': self.os_type,
+            'evidence_collected': []
+        }
+        
+        with open(metadata_file, 'w') as f:
+            json.dump(metadata, f, indent=2)
+        
         # Execute parallel snapshots based on threat type
         threads = []
+        evidence_types = []
         
         if threat_type == 'log_clearing':
             threads.append(threading.Thread(
                 target=self._snapshot_event_logs,
                 args=(snapshot_dir,)
             ))
+            evidence_types.append('event_logs')
         
         if threat_type == 'vss_deletion':
             threads.append(threading.Thread(
                 target=self._snapshot_vss_state,
                 args=(snapshot_dir,)
             ))
+            evidence_types.append('vss_state')
         
         if threat_type == 'file_wiping':
             threads.append(threading.Thread(
                 target=self._snapshot_filesystem_metadata,
                 args=(snapshot_dir,)
             ))
+            evidence_types.append('filesystem_metadata')
         
         # Always capture process state and memory info
         threads.append(threading.Thread(
             target=self._snapshot_process_state,
             args=(snapshot_dir, process_info)
         ))
+        evidence_types.append('process_state')
         
         # Capture network state if enabled
         if self.capture_network:
@@ -84,14 +105,23 @@ class EmergencySnapshotEngine:
                 target=self._snapshot_network_state,
                 args=(snapshot_dir,)
             ))
+            evidence_types.append('network_state')
         
         # Start all threads (parallel execution)
         for thread in threads:
+            thread.daemon = True  # Don't block if thread hangs
             thread.start()
         
-        # Wait for all to complete
+        # Wait for all to complete (with timeout)
         for thread in threads:
-            thread.join()
+            thread.join(timeout=10)  # Max 10s per thread
+        
+        # Update metadata with what was collected
+        metadata['evidence_collected'] = evidence_types
+        metadata['capture_duration_ms'] = (time.time() - start_time) * 1000
+        
+        with open(metadata_file, 'w') as f:
+            json.dump(metadata, f, indent=2)
         
         elapsed = (time.time() - start_time) * 1000  # Convert to ms
         

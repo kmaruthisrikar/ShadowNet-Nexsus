@@ -117,17 +117,24 @@ class WindowsProcessMonitor(BaseProcessMonitor):
         print(f"⚡ Windows Process Monitor: ACTIVE (WMI: {'YES' if HAS_WMI else 'NO'}, Polling: {'YES' if HAS_PSUTIL else 'NO'})")
 
     def _wmi_monitor_loop(self):
-        # 🛡️ Admin Check
-        if platform.system().lower() == 'windows' and not is_admin():
-            print("\n⚠️  PRIVILEGE ALERT: ShadowNet is NOT Admin. System processes (wevtutil) might be hidden.\n")
-
         pythoncom.CoInitialize()
         wmi_working = False
         try:
             w = wmi.WMI()
-            # Simplified query - avoid WITHIN clause which causes COM errors on some systems
+            # 1. WMI Event Watcher initialization with delay fallback
             print("   [WMI] Attempting to initialize event watcher...")
-            watcher = w.Win32_Process.watch_for("creation")
+            try:
+                # FIXED: Use delay_secs for more stable WMI event delivery
+                watcher = w.Win32_Process.watch_for(
+                    notification_type="creation",
+                    delay_secs=1
+                )
+            except Exception as e:
+                print(f"   [ERROR] WMI event watcher failed: {e}")
+                print("   [FALLBACK] Using polling-only mode")
+                wmi_working = False
+                return
+
             wmi_working = True
             print("   [WMI] ✅ Event watcher initialized successfully")
             
@@ -150,9 +157,15 @@ class WindowsProcessMonitor(BaseProcessMonitor):
                             sys.stdout.write(f" [WMI-DISCOVERED: {name}] ")
                             sys.stdout.flush()
 
+                        # FIXED: Better fallback chain for command line
                         try:
-                            cmd = str(new_process.CommandLine or new_process.ExecutablePath or name)
-                        except:
+                            cmdline = getattr(new_process, 'CommandLine', None)
+                            if not cmdline or str(cmdline).strip() == "":
+                                cmdline = getattr(new_process, 'ExecutablePath', name)
+                            if not cmdline:
+                                cmdline = name
+                            cmd = str(cmdline)
+                        except Exception as e:
                             cmd = name
 
                         # Aggressive forensic check
@@ -175,12 +188,13 @@ class WindowsProcessMonitor(BaseProcessMonitor):
                                 'parent_pid': new_process.ParentProcessId
                             }
                             self._handle_suspicious_command(cmd, p_info, "WMI")
+                except wmi.x_wmi_timed_out:
+                    # Normal timeout, continue silently
+                    continue
                 except Exception as e:
-                    # WMI timeout is normal, other errors are not
-                    error_str = str(e)
-                    if "Timed out" not in error_str and "x_wmi_timed_out" not in error_str:
-                        if self.monitoring:
-                            print(f"\n⚠️  WMI Error: {error_str[:100]}")
+                    if self.monitoring:
+                        print(f"\n⚠️  WMI Error: {e}")
+                        time.sleep(1) # Prevent tight error loop
                     continue
         except Exception as e:
             print(f"⚠️ WMI initialization failed: {e}")
@@ -193,15 +207,23 @@ class WindowsProcessMonitor(BaseProcessMonitor):
 
     def _polling_loop(self):
         seen_pids = set()
-        print("   [POLLING] Ultra-fast polling active (10ms interval)")
+        print("   [POLLING] Ultra-fast differential polling active (10ms interval)")
         while self.monitoring:
             try:
+                # FIXED: Proper differential tracking for polling
+                current_pids = set(p.info['pid'] for p in psutil.process_iter(['pid']))
+                new_pids = current_pids - seen_pids
+                
+                # Check for processes that vanished to clean up seen_pids
+                seen_pids = current_pids
+
+                # Only examine new processes or all if requested
                 for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'username']):
                     try:
                         pid = proc.info['pid']
-                        if pid in seen_pids: continue
-                        seen_pids.add(pid)
-                        
+                        if pid not in new_pids:
+                            continue
+                            
                         name = proc.info.get('name', '')
                         cmdline = proc.info.get('cmdline')
                         full_cmd = " ".join(cmdline) if cmdline else name
@@ -212,8 +234,8 @@ class WindowsProcessMonitor(BaseProcessMonitor):
                         
                         # Debug: Show when we find a match
                         if is_suspicious_exe or is_suspicious_cmd:
-                            print(f"\n[MATCH!] {name} - Exe:{is_suspicious_exe}, Cmd:{is_suspicious_cmd}")
-                            print(f"[MATCH!] Full command: {full_cmd[:100]}")
+                            print(f"\n[MATCH!] {name} (PID: {pid}) - Exe:{is_suspicious_exe}, Cmd:{is_suspicious_cmd}")
+                            print(f"[MATCH!] Full command: {full_cmd[:100]}...")
                         
                         if is_suspicious_cmd or is_suspicious_exe:
                             self._handle_suspicious_command(full_cmd, {
@@ -226,9 +248,10 @@ class WindowsProcessMonitor(BaseProcessMonitor):
                     except (psutil.NoSuchProcess, psutil.AccessDenied):
                         continue
             except Exception as e:
-                pass
+                if self.monitoring:
+                    # Use stderr for internal errors to keep stdout clean
+                    pass
             
-            if len(seen_pids) > 2000: seen_pids.clear()
             time.sleep(0.01) # 10ms ultra-fast polling
 
 

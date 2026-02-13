@@ -120,6 +120,25 @@ class GeminiCommandAnalyzer:
         
         except Exception as e:
             # General error handling
+            error_msg = str(e)
+            
+            # Check if API quota exceeded (429 error)
+            if "429" in error_msg or "quota" in error_msg.lower():
+                return {
+                    'is_anti_forensics': True,  # Flag as threat as a safety fallback
+                    'confidence': 0.6,          # Medium confidence (keyword match only)
+                    'category': 'keyword_match_fallback',
+                    'severity': 'MEDIUM',
+                    'explanation': f'API quota exceeded. Flagging as suspicious based on keyword match. Error: {error_msg[:100]}',
+                    'threat_indicators': ['quota_exceeded', 'keyword_fallback'],
+                    'recommended_action': 'review_manually',
+                    'api_quota_exceeded': True,
+                    'analysis_timestamp': datetime.now().isoformat(),
+                    'model_used': self.model_name,
+                    'command_analyzed': command_line,
+                    'error': error_msg
+                }
+
             return {
                 'is_anti_forensics': False,
                 'confidence': 0.0,

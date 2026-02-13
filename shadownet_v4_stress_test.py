@@ -1,5 +1,5 @@
 """
-SHADOWNET v4.1 - COMPREHENSIVE REAL-TIME STRESS TEST
+SHADOWNET v4.0 - COMPREHENSIVE REAL-TIME STRESS TEST
 This script simulates multiple attack vectors to verify the system's
 Real-Time Detection (WMI), AI Analysis, and Forensic Preservation layers.
 
@@ -15,7 +15,7 @@ import sys
 
 def print_banner():
     print("="*70)
-    print("🛡️  SHADOWNET v4.1 - FULL SYSTEM CAPABILITY TEST")
+    print("🛡️  SHADOWNET v4.0 - FULL SYSTEM CAPABILITY TEST")
     print("="*70)
     print("This will trigger multiple suspicious activities to verify detection.")
     print("Watch your ShadowNet terminal for real-time alerts!")

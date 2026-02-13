@@ -1,5 +1,5 @@
 """
-SHADOWNET NEXUS - COMPLETE REAL-TIME SYSTEM (v4.7)
+SHADOWNET NEXUS - COMPLETE REAL-TIME SYSTEM (v4.0)
 Integrates all core modules: SIEM, Alerts, Behavior Analysis, and Advanced Reporting.
 OPTIMIZED: Background processing and deduplication for high-volume attacks.
 """
@@ -37,7 +37,7 @@ print(f"[OK] API Key loaded: {api_key[:20]}...{api_key[-10:]}\n")
 
 # --- Import All Core Components ---
 print("[MSG] Loading core modules...")
-from core.process_monitor import ProcessMonitor as WMIProcessMonitor
+from core.process_monitor import ProcessMonitor, is_admin
 from core.proactive_evidence_collector import ProactiveEvidenceCollector
 from core.gemini_command_analyzer import GeminiCommandAnalyzer
 from core.siem_integration import SIEMIntegration, SIEMPlatform
@@ -52,11 +52,36 @@ config_path = Path(__file__).parent / 'config' / 'config.yaml'
 with open(config_path, 'r') as f:
     config = yaml.safe_load(f)
 
-keywords = config['shadownet']['monitoring']['suspicious_keywords']
+# FIXED: Robust keyword loading and validation
+keywords_config = config['shadownet']['monitoring'].get('suspicious_keywords', [])
+if keywords_config is None:
+    keywords = []
+elif isinstance(keywords_config, str):
+    keywords = [keywords_config]
+elif not isinstance(keywords_config, list):
+    keywords = list(keywords_config)
+else:
+    keywords = keywords_config
+
+if not keywords:
+    print("❌ ERROR: No keywords loaded from config!")
+    print("   Check config/config.yaml - 'suspicious_keywords' section")
+    sys.exit(1)
+
+print(f"[OK] Loaded {len(keywords)} detection keywords")
+
+# FIXED: Admin Check Happening Early
+is_root = is_admin()
+
+print("\n" + "="*80)
+print(f"✅ SHADOWNET v4.0 IS NOW ACTIVE ({'ADMIN/ROOT' if is_root else 'USER MODE'})")
+if not is_root:
+    print("⚠️  WARNING: Running in USER MODE. Forensic commands (wevtutil) will NOT be detected.")
+print("="*80)
 
 # --- Initialize System Components ---
 print("\n" + "!"*80)
-print("🚀 SHADOWNET NEXUS v4.5 - ULTIMATE SPEED ENGINE STARTING...")
+print("🚀 SHADOWNET NEXUS v4.0 - ULTIMATE SPEED ENGINE STARTING...")
 print("!"*80 + "\n")
 
 # 1. Evidence Engine
@@ -94,6 +119,7 @@ incidents = 0
 threat_log = []
 incident_queue = queue.Queue()
 recent_commands = {} # For deduplication: {command_key: last_time}
+MY_PID = os.getpid()
 
 def log_worker():
     """Background thread to process incident reports and snapshots without blocking detection"""
@@ -105,6 +131,11 @@ def log_worker():
             item = incident_queue.get()
             if item is None: break # Shutdown signal
             
+            # FIXED: Wait for snapshot to complete if provided
+            task_event = item.get('task_event')
+            if task_event:
+                task_event.wait(timeout=5)
+
             command = item['command']
             matched_keywords = item['matched_keywords']
             process_info = item['process_info']
@@ -197,21 +228,32 @@ def on_suspicious_command(command: str, process_info: dict):
     
     recent_commands[cmd_key] = now
     
-    # Aggressive Forensic Check (Config Driven)
-    if isinstance(keywords, str): keywords = [keywords]
-    
-    # Match against binary name AND command line
-    matched_keywords = [k for k in keywords if k.lower() in command.lower() or k.lower() in proc_name.lower()]
-    is_forensic_tool = len(matched_keywords) > 0
-    
-    if not is_forensic_tool:
+    # FIXED: Robust Keyword Matching Logic
+    matched_keywords = []
+    cmd_lower = command.lower()
+    proc_lower = proc_name.lower()
+
+    for keyword in keywords:
+        kw_lower = keyword.lower()
+        if kw_lower in cmd_lower or kw_lower in proc_lower:
+            matched_keywords.append(keyword)
+
+    if not matched_keywords:
         return 
     
     print(f"\n⚡ DETECTION: {proc_name} matched keywords {matched_keywords}")
         
-    # Whitelist Self-Monitoring (Only ignore EXACT evidence collection signatures)
-    # This prevents the system from ignoring manual 'wevtutil' commands
-    if "evidence\\emergency_snapshots" in command and "epl " in command:
+    # FIXED: Whitelist Filter (More Specific)
+    # 1. Ignore if it's our own process (SIEM/SIEM communication)
+    if process_info.get('pid') == MY_PID:
+        return
+        
+    # 2. Ignore if ShadowNet is the PARENT (our own evidence collection)
+    if process_info.get('parent_pid') == MY_PID:
+        return
+
+    # 3. Double safety for snapshot commands
+    if "evidence\\emergency_snapshots" in command and ("shadownet_realtime.py" in command.lower() or "shadownet" in str(process_info.get('name', '')).lower()):
         return
 
     detections += 1
@@ -238,13 +280,21 @@ def on_suspicious_command(command: str, process_info: dict):
 
     # 2. Spawn ASYNC Analysis (Background)
     print(f"📡 Dispatching to Gemini AI for deep analysis (Async)...")
+    
+    # FIXED: Race Condition synchronization
+    task_event = threading.Event()
+    
     incident_queue.put({
         'command': command,
         'matched_keywords': matched_keywords,
         'process_info': process_info,
         'is_critical': is_critical,
-        'snapshot_id': snapshot_id
+        'snapshot_id': snapshot_id,
+        'task_event': task_event
     })
+    
+    # Evidence capture is already done by now in foreground
+    task_event.set()
     
     print(f"{'='*80}\n")
 
@@ -258,9 +308,11 @@ def on_behavioral_alert(alert_data: dict):
     incident_queue.put({
         'command': alert_data['command'],
         'matched_keywords': ['behavioral_anomaly'],
-        'ai_res': alert_data['ai_analysis'],
+        'ai_res': alert_data.get('ai_analysis', {}),
         'process_info': alert_data['process_info'],
-        'is_critical': True
+        'is_critical': True,
+        'snapshot_id': 'N/A',
+        'task_event': None
     })
 
 # --- Start System ---
@@ -270,7 +322,6 @@ if __name__ == "__main__":
     
     # 1. Process Monitor
     if monitoring_config.get('enable_process_monitoring', True):
-        from core.process_monitor import ProcessMonitor
         monitor = ProcessMonitor(callback=on_suspicious_command, suspicious_keywords=keywords)
         monitor.start_monitoring()
         print("   [OK] Process Monitor: ACTIVE")
@@ -286,17 +337,6 @@ if __name__ == "__main__":
         print("   [OK] Behavioral Guard: ACTIVE")
     else:
         print("   [--] Behavioral Guard: DISABLED (Config)")
-    print("\n" + "!"*80)
-    print("🚀 SHADOWNET NEXUS v4.7 - KERNEL-FAST ENGINE STARTING...")
-    print("!"*80 + "\n")
-    from core.process_monitor import is_admin
-    is_root = is_admin()
-    
-    print("\n" + "="*80)
-    print(f"✅ SHADOWNET v4.7 IS NOW ACTIVE ({'ADMIN/ROOT' if is_root else 'USER MODE'})")
-    if not is_root:
-        print("⚠️  WARNING: Running in USER MODE. Forensic commands (wevtutil) will NOT be detected.")
-    print("="*80)
     print(f"Platform: {evidence_collector.os_type.upper()}")
     print(f"Monitor: Hybrid (Pulsar Enabled)")
     print("Async Queue: ENABLED")
@@ -315,7 +355,7 @@ if __name__ == "__main__":
         monitor.stop_monitoring()
         incident_queue.put(None)
         worker_thread.join(timeout=5)
-        print("\n👋 ShadowNet v4.1 shutdown complete\n")
+        print("\n👋 ShadowNet v4.0 shutdown complete\n")
     except Exception as e:
         print(f"\n❌ Fatal Error: {e}")
         sys.exit(1)

@@ -1,5 +1,4 @@
-"""
-SHADOWNET NEXUS - COMPLETE REAL-TIME SYSTEM (v4.3)
+SHADOWNET NEXUS - COMPLETE REAL-TIME SYSTEM (v4.5)
 Integrates all core modules: SIEM, Alerts, Behavior Analysis, and Advanced Reporting.
 OPTIMIZED: Background processing and deduplication for high-volume attacks.
 """
@@ -55,7 +54,9 @@ with open(config_path, 'r') as f:
 keywords = config['shadownet']['monitoring']['suspicious_keywords']
 
 # --- Initialize System Components ---
-print("\n[INIT] Initializing v4.0 Defense Layers...")
+print("\n" + "!"*80)
+print("🚀 SHADOWNET NEXUS v4.5 - ULTIMATE SPEED ENGINE STARTING...")
+print("!"*80 + "\n")
 
 # 1. Evidence Engine
 capture_net = config['shadownet']['monitoring'].get('enable_network_monitoring', True)

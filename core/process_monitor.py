@@ -171,23 +171,25 @@ class WindowsProcessMonitor(BaseProcessMonitor):
                     if pid in seen_pids: continue
                     seen_pids.add(pid)
                     
+                    name = proc.info.get('name', '')
                     cmdline = proc.info.get('cmdline')
-                    if not cmdline: continue
-                    full_cmd = " ".join(cmdline)
+                    full_cmd = " ".join(cmdline) if cmdline else name
                     
-                    if self._is_suspicious(full_cmd):
+                    # Detect by Command Line OR by Binary Name (Fast-kill fallback)
+                    is_suspicious_exe = any(kw.lower() in name.lower() for kw in self.suspicious_keywords)
+                    
+                    if self._is_suspicious(full_cmd) or is_suspicious_exe:
                         self._handle_suspicious_command(full_cmd, {
                             'pid': pid,
-                            'name': proc.info['name'],
-                            'cmdline': cmdline,
-                            'username': proc.info['username'],
+                            'name': name,
+                            'cmdline': cmdline or [name],
+                            'username': proc.info.get('username', 'Unknown'),
                             'parent_pid': proc.ppid() if hasattr(proc, 'ppid') else 0
                         }, "Polling")
             except: pass
             
             if len(seen_pids) > 2000: seen_pids.clear()
-            # Dynamic polling for faster response on Windows fallback
-            time.sleep(0.01)
+            time.sleep(0.05) # Balanced frequency
 
 
 class UnixProcessMonitor(BaseProcessMonitor):

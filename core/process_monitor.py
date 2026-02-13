@@ -122,11 +122,14 @@ class WindowsProcessMonitor(BaseProcessMonitor):
             print("\n⚠️  PRIVILEGE ALERT: ShadowNet is NOT Admin. System processes (wevtutil) might be hidden.\n")
 
         pythoncom.CoInitialize()
+        wmi_working = False
         try:
             w = wmi.WMI()
-            # 1.0s is much more stable than 0.1s for some WMI providers
-            query = "SELECT * FROM __InstanceCreationEvent WITHIN 1.0 WHERE TargetInstance ISA 'Win32_Process'"
-            watcher = w.watch_for(raw_wql=query)
+            # Simplified query - avoid WITHIN clause which causes COM errors on some systems
+            print("   [WMI] Attempting to initialize event watcher...")
+            watcher = w.Win32_Process.watch_for("creation")
+            wmi_working = True
+            print("   [WMI] ✅ Event watcher initialized successfully")
             
             last_pulse = time.time()
             while self.monitoring:
@@ -136,19 +139,19 @@ class WindowsProcessMonitor(BaseProcessMonitor):
                         subprocess.Popen(['cmd.exe', '/c', 'echo ShadowNetPulse'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                         last_pulse = time.time()
 
-                    event = watcher(timeout_ms=500)
-                    if event:
-                        proc = event.TargetInstance
-                        name = str(proc.Name)
-                        pid = proc.ProcessId
+                    # Use shorter timeout to avoid blocking
+                    new_process = watcher(timeout_ms=100)
+                    if new_process:
+                        name = str(new_process.Name)
+                        pid = new_process.ProcessId
                         
                         # Diagnostic: Show EVERY discovery instantly
                         if "ShadowNetPulse" not in name:
-                            sys.stdout.write(f" [DISCOVERED: {name}] ")
+                            sys.stdout.write(f" [WMI-DISCOVERED: {name}] ")
                             sys.stdout.flush()
 
                         try:
-                            cmd = str(proc.CommandLine or proc.ExecutablePath or name)
+                            cmd = str(new_process.CommandLine or new_process.ExecutablePath or name)
                         except:
                             cmd = name
 
@@ -159,7 +162,7 @@ class WindowsProcessMonitor(BaseProcessMonitor):
                             self.processes_detected += 1
                             owner = "Unknown"
                             try:
-                                owner_info = proc.GetOwner()
+                                owner_info = new_process.GetOwner()
                                 if owner_info and owner_info[0]:
                                     owner = f"{owner_info[0]}\\{owner_info[2]}"
                             except: pass
@@ -169,46 +172,62 @@ class WindowsProcessMonitor(BaseProcessMonitor):
                                 'name': name,
                                 'cmdline': [cmd],
                                 'username': owner,
-                                'parent_pid': proc.ParentProcessId
+                                'parent_pid': new_process.ParentProcessId
                             }
                             self._handle_suspicious_command(cmd, p_info, "WMI")
-                except wmi.x_wmi_timed_out:
+                except Exception as e:
+                    # WMI timeout is normal, other errors are not
+                    error_str = str(e)
+                    if "Timed out" not in error_str and "x_wmi_timed_out" not in error_str:
+                        if self.monitoring:
+                            print(f"\n⚠️  WMI Error: {error_str[:100]}")
                     continue
-                except Exception:
-                    pass 
         except Exception as e:
-            print(f"⚠️ WMI Critical failure: {e}")
+            print(f"⚠️ WMI initialization failed: {e}")
+            print("   [FALLBACK] Switching to polling-only mode...")
         finally:
             pythoncom.CoUninitialize()
+            
+        if not wmi_working:
+            print("   [INFO] WMI not available, relying on polling fallback")
 
     def _polling_loop(self):
         seen_pids = set()
+        print("   [POLLING] Ultra-fast polling active (10ms interval)")
         while self.monitoring:
             try:
                 for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'username']):
-                    pid = proc.info['pid']
-                    if pid in seen_pids: continue
-                    seen_pids.add(pid)
-                    
-                    name = proc.info.get('name', '')
-                    cmdline = proc.info.get('cmdline')
-                    full_cmd = " ".join(cmdline) if cmdline else name
-                    
-                    # Detect by Command Line OR by Binary Name (Fast-kill fallback)
-                    is_suspicious_exe = any(kw.lower() in name.lower() for kw in self.suspicious_keywords)
-                    
-                    if self._is_suspicious(full_cmd) or is_suspicious_exe:
-                        self._handle_suspicious_command(full_cmd, {
-                            'pid': pid,
-                            'name': name,
-                            'cmdline': cmdline or [name],
-                            'username': proc.info.get('username', 'Unknown'),
-                            'parent_pid': proc.ppid() if hasattr(proc, 'ppid') else 0
-                        }, "Polling")
-            except: pass
+                    try:
+                        pid = proc.info['pid']
+                        if pid in seen_pids: continue
+                        seen_pids.add(pid)
+                        
+                        name = proc.info.get('name', '')
+                        cmdline = proc.info.get('cmdline')
+                        full_cmd = " ".join(cmdline) if cmdline else name
+                        
+                        # Show discovery for debugging
+                        sys.stdout.write(f" [POLL-DISCOVERED: {name}] ")
+                        sys.stdout.flush()
+                        
+                        # Detect by Command Line OR by Binary Name (Fast-kill fallback)
+                        is_suspicious_exe = any(kw.lower() in name.lower() for kw in self.suspicious_keywords)
+                        
+                        if self._is_suspicious(full_cmd) or is_suspicious_exe:
+                            self._handle_suspicious_command(full_cmd, {
+                                'pid': pid,
+                                'name': name,
+                                'cmdline': cmdline or [name],
+                                'username': proc.info.get('username', 'Unknown'),
+                                'parent_pid': proc.ppid() if hasattr(proc, 'ppid') else 0
+                            }, "Polling")
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        continue
+            except Exception as e:
+                pass
             
             if len(seen_pids) > 2000: seen_pids.clear()
-            time.sleep(0.05) # Balanced frequency
+            time.sleep(0.01) # 10ms ultra-fast polling
 
 
 class UnixProcessMonitor(BaseProcessMonitor):

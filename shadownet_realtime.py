@@ -207,7 +207,7 @@ def on_suspicious_command(command: str, process_info: dict):
     is_critical = len(matched_keywords) > 0 or is_forensic_tool
     
     print(f"\n{'='*80}")
-    print(f"MATCH: {matched_keywords if matched_keywords else [proc_name]} | AGGRESSIVE: {is_critical}")
+    print(f"🚨 KERNEL SIGNAL MATCHED: {matched_keywords if matched_keywords else [proc_name]}")
     print(f"{'='*80}")
     print(f"Command: {command}")
     print(f"System: {process_info.get('name')} (PID: {process_info.get('pid')})")

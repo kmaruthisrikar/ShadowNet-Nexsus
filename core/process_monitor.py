@@ -165,7 +165,8 @@ class WindowsProcessMonitor(BaseProcessMonitor):
             except: pass
             
             if len(seen_pids) > 2000: seen_pids.clear()
-            time.sleep(0.05)
+            # Dynamic polling for faster response on Windows fallback
+            time.sleep(0.01)
 
 
 class UnixProcessMonitor(BaseProcessMonitor):
@@ -250,6 +251,7 @@ def ProcessMonitor(callback: Optional[Callable] = None, suspicious_keywords: Lis
     """Factory function to return the correct monitor for the platform"""
     os_type = platform.system().lower()
     if os_type == 'windows':
+        print(f"   [WMI] Initializing Kernel Watcher with {len(suspicious_keywords)} triggers...")
         return WindowsProcessMonitor(callback, suspicious_keywords)
     else:
         # Linux and Darwin (Mac) share psutil logic

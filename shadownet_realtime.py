@@ -1,4 +1,5 @@
-SHADOWNET NEXUS - COMPLETE REAL-TIME SYSTEM (v4.5)
+"""
+SHADOWNET NEXUS - COMPLETE REAL-TIME SYSTEM (v4.6 - EXTREME SPEED)
 Integrates all core modules: SIEM, Alerts, Behavior Analysis, and Advanced Reporting.
 OPTIMIZED: Background processing and deduplication for high-volume attacks.
 """
@@ -180,34 +181,31 @@ def on_suspicious_command(command: str, process_info: dict):
     # Deduplication (Anti-Spam)
     cmd_key = f"{process_info.get('name')}:{command}"
     now = time.time()
-    
     proc_name = process_info.get('name', 'Unknown')
     
-    # � DEEP DEBUG: Log EVERY spawn to confirm monitor is alive
-    print(f" [SPAWN: {proc_name}] ", end="", flush=True)
-
-    if cmd_key in recent_commands and (now - recent_commands[cmd_key]) < 2:
-        print("(dup)", end="", flush=True)
+    # Deduplication
+    if cmd_key in recent_commands and (now - recent_commands[cmd_key]) < 0.5:
+        sys.stdout.write(".") 
+        sys.stdout.flush()
         detections += 1
         return
     
     recent_commands[cmd_key] = now
     
-    matched_keywords = [k for k in keywords if k.lower() in command.lower()]
-    proc_name = process_info.get('name', '').lower()
+    # 🚨 SECURITY ALERT TRIGGERED
+    print(f"\n[!] SUSPICIOUS EVENT: {proc_name} ({command})")
     
-    # Aggressive Forensic Check (Derived directly from config.yaml)
-    # This treats every keyword in the config as a critical binary name for instant matching
+    # Aggressive Forensic Check (Config Driven)
     if isinstance(keywords, str): keywords = [keywords]
     
-    clean_proc = proc_name.lower().replace('.exe', '')
-    is_forensic_tool = any(kw.lower() in clean_proc for kw in keywords) or \
-                       any(kw.lower() in command.lower() for kw in keywords)
+    # Match against binary name AND command line
+    matched_keywords = [k for k in keywords if k.lower() in command.lower() or k.lower() in proc_name.lower()]
+    is_forensic_tool = len(matched_keywords) > 0
     
-    if not matched_keywords and not is_forensic_tool:
+    if not is_forensic_tool:
         return 
     
-    print(f"\n[DEBUG] MATCH FOUND! Keywords: {matched_keywords}, Forensic: {is_forensic_tool}")
+    print(f"\n⚡ DETECTION: {proc_name} matched keywords {matched_keywords}")
         
     # Whitelist Self-Monitoring (Only ignore EXACT evidence collection signatures)
     # This prevents the system from ignoring manual 'wevtutil' commands
@@ -215,9 +213,7 @@ def on_suspicious_command(command: str, process_info: dict):
         return
 
     detections += 1
-
-    # AGGRESSIVE MODE: Every keyword in config is considered critical for logging
-    is_critical = len(matched_keywords) > 0 or is_forensic_tool
+    is_critical = True # Any keyword match is now considered critical for speed
     
     print(f"\n{'='*80}")
     print(f"🚨 KERNEL SIGNAL MATCHED (Instant Detection)")

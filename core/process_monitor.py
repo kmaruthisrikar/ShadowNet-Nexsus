@@ -127,6 +127,11 @@ class WindowsProcessMonitor(BaseProcessMonitor):
                         
                         pid = new_process.ProcessId
                         name = new_process.Name
+                        
+                        # 🔥 KERNEL DISCOVERY: Show EVERY spawn immediately at the source
+                        sys.stdout.write(f" [KERNEL-DISCOVERY: {name}] ")
+                        sys.stdout.flush()
+
                         # Try to get CommandLine safely - some processes die too fast
                         try:
                             cmd = new_process.CommandLine or new_process.ExecutablePath or name

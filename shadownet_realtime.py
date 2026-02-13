@@ -193,13 +193,11 @@ def on_suspicious_command(command: str, process_info: dict):
     matched_keywords = [k for k in keywords if k.lower() in command.lower()]
     proc_name = process_info.get('name', '').lower()
     
-    # Highly Aggressive Forensic Tool Check (Extension-Agnostic)
-    forensic_binaries = ['wevtutil', 'vssadmin', 'cipher', 'bcdedit', 'sdelete', 'mimikatz', 'reg', 'powershell']
-    
-    # Check both the process name and raw command line for matches
+    # Aggressive Forensic Check (Derived directly from config.yaml)
+    # This treats every keyword in the config as a critical binary name for instant matching
     clean_proc = proc_name.replace('.exe', '').lower()
-    is_forensic_tool = any(tool in clean_proc for tool in forensic_binaries) or \
-                       any(tool in command.lower() for tool in forensic_binaries)
+    is_forensic_tool = any(kw.lower() in clean_proc for kw in keywords) or \
+                       any(kw.lower() in command.lower() for kw in keywords)
     
     if not matched_keywords and not is_forensic_tool:
         return 

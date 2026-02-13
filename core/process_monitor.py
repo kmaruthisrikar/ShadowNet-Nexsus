@@ -1,3 +1,15 @@
+"""
+ShadowNet Nexus - Cross-Platform Process Monitor
+Supports Windows (WMI + Polling), Linux (Polling), and Mac (Polling)
+"""
+
+import os
+import sys
+import threading
+import time
+from datetime import datetime
+from typing import Callable, Optional, Dict, Any, List
+from collections import deque
 import platform
 import subprocess
 import ctypes

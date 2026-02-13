@@ -186,10 +186,14 @@ def on_suspicious_command(command: str, process_info: dict):
     """Handle suspicious command with v4.0 Logic and Deduplication Imaging"""
     global detections, recent_commands
     
-    # Deduplication
+    # Deduplication (Anti-Spam)
     cmd_key = f"{process_info.get('name')}:{command}"
     now = time.time()
-    if cmd_key in recent_commands and (now - recent_commands[cmd_key]) < 30:
+    if cmd_key in recent_commands and (now - recent_commands[cmd_key]) < 5:
+        # Silently keep count but don't re-print to keep terminal clean
+        # However, for manual testing, let's show a tiny indicator
+        sys.stdout.write(".") 
+        sys.stdout.flush()
         detections += 1
         return
     
@@ -197,9 +201,15 @@ def on_suspicious_command(command: str, process_info: dict):
     
     matched_keywords = [k for k in keywords if k.lower() in command.lower()]
     proc_name = process_info.get('name', '').lower()
-    is_forensic_tool = any(tool in proc_name for tool in ['wevtutil.exe', 'vssadmin.exe', 'cipher.exe'])
+    
+    # Forensic Tools (Extended List)
+    forensic_binaries = ['wevtutil', 'vssadmin', 'cipher', 'bcdedit', 'sdelete', 'mimikatz']
+    is_forensic_tool = any(tool in proc_name for tool in forensic_binaries)
     
     if not matched_keywords and not is_forensic_tool:
+        # Small visual heartbeat for non-suspicious processes
+        sys.stdout.write(".") 
+        sys.stdout.flush()
         return 
         
     detections += 1

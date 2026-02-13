@@ -116,8 +116,18 @@ class WindowsProcessMonitor(BaseProcessMonitor):
                     new_process = watcher(timeout_ms=1000)
                     if new_process:
                         self.processes_detected += 1
-                        cmd = new_process.CommandLine or new_process.ExecutablePath or new_process.Name
-                        if self._is_suspicious(cmd):
+                        # Show heartbeat to confirm monitor is "hearing" spawns
+                        sys.stdout.write(".") 
+                        sys.stdout.flush()
+                        
+                        pid = new_process.ProcessId
+                        name = new_process.Name
+                        cmd = new_process.CommandLine or new_process.ExecutablePath or name
+                        
+                        # Forensic Check: Even if CommandLine is None, if the EXE is wevtutil, it's a match
+                        is_suspicious_exe = any(kw.lower() in name.lower() for kw in self.suspicious_keywords)
+                        
+                        if self._is_suspicious(cmd) or is_suspicious_exe:
                             # Get owner safely
                             owner = "Unknown"
                             try:
@@ -127,8 +137,8 @@ class WindowsProcessMonitor(BaseProcessMonitor):
                             except: pass
                             
                             p_info = {
-                                'pid': new_process.ProcessId,
-                                'name': new_process.Name,
+                                'pid': pid,
+                                'name': name,
                                 'cmdline': [cmd],
                                 'username': owner,
                                 'parent_pid': new_process.ParentProcessId

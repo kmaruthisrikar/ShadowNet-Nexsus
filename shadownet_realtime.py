@@ -1,5 +1,5 @@
 """
-SHADOWNET NEXUS - COMPLETE REAL-TIME SYSTEM (v4.6 - EXTREME SPEED)
+SHADOWNET NEXUS - COMPLETE REAL-TIME SYSTEM (v4.7)
 Integrates all core modules: SIEM, Alerts, Behavior Analysis, and Advanced Reporting.
 OPTIMIZED: Background processing and deduplication for high-volume attacks.
 """
@@ -284,12 +284,19 @@ if __name__ == "__main__":
         print("   [OK] Behavioral Guard: ACTIVE")
     else:
         print("   [--] Behavioral Guard: DISABLED (Config)")
-        
+    print("\n" + "!"*80)
+    print("🚀 SHADOWNET NEXUS v4.7 - KERNEL-FAST ENGINE STARTING...")
+    print("!"*80 + "\n")
+    from core.process_monitor import is_admin
+    is_root = is_admin()
+    
     print("\n" + "="*80)
-    print("✅ SHADOWNET v4.1 IS NOW ACTIVE (Cross-Platform Mode)!")
+    print(f"✅ SHADOWNET v4.7 IS NOW ACTIVE ({'ADMIN/ROOT' if is_root else 'USER MODE'})")
+    if not is_root:
+        print("⚠️  WARNING: Running in USER MODE. Forensic commands (wevtutil) will NOT be detected.")
     print("="*80)
     print(f"Platform: {evidence_collector.os_type.upper()}")
-    print(f"Monitor: Hybrid (Platform Specific)")
+    print(f"Monitor: Hybrid (Pulsar Enabled)")
     print("Async Queue: ENABLED")
     print("Aggressive Keywords: ENABLED")
     print("\n🔍 Watching... (Ctrl+C to Shutdown)\n")

@@ -1,16 +1,14 @@
-"""
-ShadowNet Nexus - Cross-Platform Process Monitor
-Supports Windows (WMI + Polling), Linux (Polling), and Mac (Polling)
-"""
-
-import os
-import sys
-import threading
-import time
-from datetime import datetime
-from typing import Callable, Optional, Dict, Any, List
-from collections import deque
 import platform
+import subprocess
+import ctypes
+
+def is_admin():
+    try:
+        if platform.system().lower() == 'windows':
+            return ctypes.windll.shell32.IsUserAnAdmin()
+        return os.getuid() == 0
+    except:
+        return False
 
 # Conditional imports
 try:
@@ -107,45 +105,49 @@ class WindowsProcessMonitor(BaseProcessMonitor):
         print(f"⚡ Windows Process Monitor: ACTIVE (WMI: {'YES' if HAS_WMI else 'NO'}, Polling: {'YES' if HAS_PSUTIL else 'NO'})")
 
     def _wmi_monitor_loop(self):
+        # 🛡️ Admin Check
+        if platform.system().lower() == 'windows' and not is_admin():
+            print("\n⚠️  PRIVILEGE ALERT: ShadowNet is NOT Admin. System processes (wevtutil) might be hidden.\n")
+
         pythoncom.CoInitialize()
         try:
             w = wmi.WMI()
-            query = "SELECT * FROM __InstanceCreationEvent WITHIN 0.1 WHERE TargetInstance ISA 'Win32_Process'"
+            # 1.0s is much more stable than 0.1s for some WMI providers
+            query = "SELECT * FROM __InstanceCreationEvent WITHIN 1.0 WHERE TargetInstance ISA 'Win32_Process'"
             watcher = w.watch_for(raw_wql=query)
             
-            last_heartbeat = time.time()
+            last_pulse = time.time()
             while self.monitoring:
                 try:
-                    if time.time() - last_heartbeat > 5:
-                        print(" [WMI-ALIVE] ", end="", flush=True)
-                        last_heartbeat = time.time()
-                        
+                    # Self-Pulse: Verify monitor is hearing things
+                    if time.time() - last_pulse > 20:
+                        subprocess.Popen(['cmd.exe', '/c', 'echo ShadowNetPulse'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        last_pulse = time.time()
+
                     event = watcher(timeout_ms=500)
                     if event:
-                        new_process = event.TargetInstance
-                        self.processes_detected += 1
+                        proc = event.TargetInstance
+                        name = str(proc.Name)
+                        pid = proc.ProcessId
                         
-                        pid = new_process.ProcessId
-                        name = new_process.Name
-                        
-                        # 🔥 KERNEL DISCOVERY: Show EVERY spawn immediately at the source
-                        sys.stdout.write(f" [KERNEL-DISCOVERY: {name}] ")
-                        sys.stdout.flush()
+                        # Diagnostic: Show EVERY discovery instantly
+                        if "ShadowNetPulse" not in name:
+                            sys.stdout.write(f" [DISCOVERED: {name}] ")
+                            sys.stdout.flush()
 
-                        # Try to get CommandLine safely - some processes die too fast
                         try:
-                            cmd = new_process.CommandLine or new_process.ExecutablePath or name
+                            cmd = str(proc.CommandLine or proc.ExecutablePath or name)
                         except:
-                            cmd = name # Fallback to exe name
-                        
-                        # Forensic Tool Check (Binary Name + Cmdline)
+                            cmd = name
+
+                        # Aggressive forensic check
                         is_suspicious_exe = any(kw.lower() in name.lower() for kw in self.suspicious_keywords)
                         
                         if self._is_suspicious(cmd) or is_suspicious_exe:
-                            # Get owner safely
+                            self.processes_detected += 1
                             owner = "Unknown"
                             try:
-                                owner_info = new_process.GetOwner()
+                                owner_info = proc.GetOwner()
                                 if owner_info and owner_info[0]:
                                     owner = f"{owner_info[0]}\\{owner_info[2]}"
                             except: pass
@@ -155,7 +157,7 @@ class WindowsProcessMonitor(BaseProcessMonitor):
                                 'name': name,
                                 'cmdline': [cmd],
                                 'username': owner,
-                                'parent_pid': new_process.ParentProcessId
+                                'parent_pid': proc.ParentProcessId
                             }
                             self._handle_suspicious_command(cmd, p_info, "WMI")
                 except wmi.x_wmi_timed_out:
@@ -163,7 +165,7 @@ class WindowsProcessMonitor(BaseProcessMonitor):
                 except Exception:
                     pass 
         except Exception as e:
-            print(f"⚠️ WMI Monitor Error: {e}")
+            print(f"⚠️ WMI Critical failure: {e}")
         finally:
             pythoncom.CoUninitialize()
 

@@ -35,6 +35,8 @@ class ProactiveEvidenceCollector:
             enabled: Enable proactive collection (requires admin/root)
             capture_network: Whether to capture network connections during a snapshot
         """
+        print(f"[DEBUG] ProactiveEvidenceCollector.__init__ called with enabled={enabled}")
+        
         self.evidence_vault_path = evidence_vault_path
         
         # Initialize dependencies
@@ -43,7 +45,11 @@ class ProactiveEvidenceCollector:
             
         # Allow evidence collection even without admin, but with limited capabilities
         self.has_admin = os_detector.is_admin
+        print(f"[DEBUG] has_admin={self.has_admin}")
+        
         self.enabled = enabled  # Always enabled if requested
+        print(f"[DEBUG] self.enabled set to {self.enabled}")
+        
         self.snapshot_engine = EmergencySnapshotEngine(evidence_vault_path, capture_network=capture_network)
         self.os_type = os_detector.os_type
         self.capabilities = os_detector.get_capabilities()
@@ -230,9 +236,16 @@ class ProactiveEvidenceCollector:
         Returns:
             Snapshot ID if captured, None otherwise
         """
+        print(f"\n[DEBUG] capture_before_execution called")
+        print(f"[DEBUG] Command: {command}")
+        print(f"[DEBUG] Enabled: {self.enabled}")
+        
         threat_info = self.should_capture(command)
         
+        print(f"[DEBUG] Threat info: {threat_info}")
+        
         if not threat_info:
+            print(f"[DEBUG] No threat info, returning None")
             return None
         
         print(f"\n🚨 PROACTIVE CAPTURE TRIGGERED!")
@@ -241,12 +254,15 @@ class ProactiveEvidenceCollector:
         print(f"   Command: {command}")
         
         try:
+            print(f"[DEBUG] Calling snapshot_engine.emergency_snapshot...")
             # Execute emergency snapshot
             snapshot_id = self.snapshot_engine.emergency_snapshot(
                 threat_type=threat_info['threat_type'],
                 command=command,
                 process_info=process_info
             )
+            
+            print(f"[DEBUG] Snapshot ID returned: {snapshot_id}")
             
             # Update statistics
             self.snapshots_taken += 1
@@ -261,6 +277,8 @@ class ProactiveEvidenceCollector:
             
         except Exception as e:
             print(f"   ❌ Proactive capture failed: {str(e)}\n")
+            import traceback
+            traceback.print_exc()
             return None
     
     def on_threat_detected(self, threat_info: Dict[str, Any]) -> Dict[str, Any]:

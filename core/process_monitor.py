@@ -206,14 +206,16 @@ class WindowsProcessMonitor(BaseProcessMonitor):
                         cmdline = proc.info.get('cmdline')
                         full_cmd = " ".join(cmdline) if cmdline else name
                         
-                        # Show discovery for debugging
-                        sys.stdout.write(f" [POLL-DISCOVERED: {name}] ")
-                        sys.stdout.flush()
-                        
                         # Detect by Command Line OR by Binary Name (Fast-kill fallback)
                         is_suspicious_exe = any(kw.lower() in name.lower() for kw in self.suspicious_keywords)
+                        is_suspicious_cmd = self._is_suspicious(full_cmd)
                         
-                        if self._is_suspicious(full_cmd) or is_suspicious_exe:
+                        # Debug: Show when we find a match
+                        if is_suspicious_exe or is_suspicious_cmd:
+                            print(f"\n[MATCH!] {name} - Exe:{is_suspicious_exe}, Cmd:{is_suspicious_cmd}")
+                            print(f"[MATCH!] Full command: {full_cmd[:100]}")
+                        
+                        if is_suspicious_cmd or is_suspicious_exe:
                             self._handle_suspicious_command(full_cmd, {
                                 'pid': pid,
                                 'name': name,

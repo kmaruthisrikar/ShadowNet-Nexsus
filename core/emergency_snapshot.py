@@ -140,7 +140,7 @@ class EmergencySnapshotEngine:
             elif self.os_type == 'darwin':  # Mac
                 self._snapshot_mac_logs(snapshot_dir)
         except Exception as e:
-            print(f"   ⚠️ Log snapshot failed: {str(e)}")
+            print(f"   ⚠️  [WARN] Log snapshot failed: {e}")
     
     def _snapshot_windows_event_logs(self, snapshot_dir: Path):
         """Snapshot Windows event logs - ONLY .evtx files"""
@@ -157,9 +157,8 @@ class EmergencySnapshotEngine:
                     'wevtutil', 'epl', log_type, str(output_file)
                 ], capture_output=True, timeout=5, text=True, check=False)
                 
-            except Exception:
-                # Silently skip if export fails
-                pass
+            except Exception as e:
+                print(f"   ⚠️  [WARN] Failed to export {log_type}: {e}")
     
     def _capture_log_metadata(self, log_type: str, logs_dir: Path):
         """Capture event log metadata when full export isn't available"""
@@ -190,8 +189,8 @@ class EmergencySnapshotEngine:
                     f.write("=" * 50 + "\n\n")
                     f.write(count_result.stdout)
                     
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"   ⚠️  [WARN] Failed to capture metadata for {log_type}: {e}")
     
     def _snapshot_linux_logs(self, snapshot_dir: Path):
         """Snapshot Linux system logs"""
@@ -210,8 +209,8 @@ class EmergencySnapshotEngine:
                 if os.path.exists(log_file):
                     dest = logs_dir / Path(log_file).name
                     shutil.copy2(log_file, dest)
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"   ⚠️  [WARN] Failed to copy {log_file}: {e}")
     
     def _snapshot_mac_logs(self, snapshot_dir: Path):
         """Snapshot Mac system logs"""
@@ -224,8 +223,8 @@ class EmergencySnapshotEngine:
             subprocess.run([
                 'log', 'show', '--last', '1h'
             ], stdout=open(output_file, 'w'), timeout=5)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"   ⚠️  [WARN] Mac log snapshot failed: {e}")
     
     def _snapshot_vss_state(self, snapshot_dir: Path):
         """Snapshot Volume Shadow Copy state (Windows only)"""
@@ -241,7 +240,7 @@ class EmergencySnapshotEngine:
             with open(vss_file, 'w') as f:
                 f.write(result.stdout)
         except Exception as e:
-            print(f"   ⚠️ VSS snapshot failed: {str(e)}")
+            print(f"   ⚠️  [WARN] VSS snapshot failed: {e}")
     
     def _snapshot_filesystem_metadata(self, snapshot_dir: Path):
         """Snapshot filesystem metadata"""
@@ -249,10 +248,10 @@ class EmergencySnapshotEngine:
             metadata_file = snapshot_dir / "filesystem_metadata.txt"
             
             if self.os_type == 'windows':
-                # Get file listing with metadata
+                # FIXED: Avoid shell=True for security (Bug 2)
                 result = subprocess.run([
-                    'dir', '/s', '/a', 'C:\\'
-                ], capture_output=True, text=True, timeout=10, shell=True)
+                    'cmd', '/c', 'dir', '/s', '/a', 'C:\\'
+                ], capture_output=True, text=True, timeout=10, shell=False)
             else:
                 # Linux/Mac: use find
                 result = subprocess.run([
@@ -262,7 +261,7 @@ class EmergencySnapshotEngine:
             with open(metadata_file, 'w') as f:
                 f.write(result.stdout[:100000])  # Limit to 100KB
         except Exception as e:
-            print(f"   ⚠️ Filesystem snapshot failed: {str(e)}")
+            print(f"   ⚠️  [WARN] Filesystem snapshot failed: {e}")
     
     def _snapshot_process_state(self, snapshot_dir: Path, process_info: Dict):
         """Snapshot current process state"""
@@ -294,7 +293,7 @@ class EmergencySnapshotEngine:
             with open(state_file, 'w') as f:
                 json.dump(state, f, indent=2)
         except Exception as e:
-            print(f"   ⚠️ Process state snapshot failed: {str(e)}")
+            print(f"   ⚠️  [WARN] Process state snapshot failed: {e}")
 
     def _snapshot_network_state(self, snapshot_dir: Path):
         """Snapshot current network state"""
@@ -316,14 +315,14 @@ class EmergencySnapshotEngine:
                         'status': conn.status,
                         'pid': conn.pid
                     })
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"   ⚠️  [WARN] Failed to capture connection metadata: {e}")
             
             with open(network_file, 'w') as f:
                 json.dump(connections, f, indent=2)
                 
         except Exception as e:
-            print(f"   ⚠️ Network state snapshot failed: {str(e)}")
+            print(f"   ⚠️  [WARN] Network state snapshot failed: {e}")
     
     def get_snapshot_info(self, snapshot_id: str) -> Dict[str, Any]:
         """Get information about a snapshot"""

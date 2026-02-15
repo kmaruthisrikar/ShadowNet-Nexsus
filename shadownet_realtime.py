@@ -11,13 +11,18 @@ import threading
 import queue
 import yaml
 import json
-import random
 from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
 
 # Load environment
 load_dotenv()
+
+# --- Constants (Bug 14) ---
+DEDUPLICATION_WINDOW = 2.0  # seconds (Bug 9)
+SNAPSHOT_TIMEOUT = 5.0      # seconds
+STATUS_CHECK_INTERVAL = 60  # seconds
+SHUTDOWN_TIMEOUT = 5.0      # seconds
 
 def print_header():
     print("-" * 61)
@@ -52,19 +57,20 @@ config_path = Path(__file__).parent / 'config' / 'config.yaml'
 with open(config_path, 'r') as f:
     config = yaml.safe_load(f)
 
-# FIXED: Robust keyword loading and validation
+# FIXED: Robust keyword loading and validation (Bug 8)
 keywords_config = config['shadownet']['monitoring'].get('suspicious_keywords', [])
-if keywords_config is None:
+if not keywords_config:
     keywords = []
 elif isinstance(keywords_config, str):
     keywords = [keywords_config]
-elif not isinstance(keywords_config, list):
-    keywords = list(keywords_config)
-else:
+elif isinstance(keywords_config, list):
     keywords = keywords_config
+else:
+    print(f"⚠️  [WARN] Invalid keyword format: {type(keywords_config)}")
+    keywords = []
 
 if not keywords:
-    print("❌ ERROR: No keywords loaded from config!")
+    print("❌ [ERROR] No keywords loaded from config!")
     print("   Check config/config.yaml - 'suspicious_keywords' section")
     sys.exit(1)
 
@@ -121,7 +127,7 @@ incident_queue = queue.Queue()
 recent_commands = {} # For deduplication: {command_key: last_time}
 MY_PID = os.getpid()
 
-def log_worker():
+def log_worker() -> None:  # Added type hints (Bug 15)
     """Background thread to process incident reports and snapshots without blocking detection"""
     global incidents, snapshots
     print("   [OK] Background Incident Processor Started")
@@ -131,10 +137,7 @@ def log_worker():
             item = incident_queue.get()
             if item is None: break # Shutdown signal
             
-            # FIXED: Wait for snapshot to complete if provided
-            task_event = item.get('task_event')
-            if task_event:
-                task_event.wait(timeout=5)
+            # Removed task_event race condition logic (Bug 1)
 
             command = item['command']
             matched_keywords = item['matched_keywords']
@@ -171,7 +174,7 @@ def log_worker():
             except Exception as e:
                 print(f"   [WARN] Failed to generate markdown report: {e}")
 
-            # 3. Direct SIEM Transmission
+            # 3. Direct SIEM Transmission (Bug 3: No longer silent)
             try:
                 siem.send_event({
                     'type': 'anti_forensics',
@@ -180,9 +183,10 @@ def log_worker():
                     'incident_id': incident_id,
                     'confidence': ai_res.get('confidence', 0)
                 }, [SIEMPlatform.SYSLOG])
-            except: pass
+            except Exception as e:
+                print(f"   [ERROR] SIEM transmission failed for {incident_id}: {e}")
 
-            # 4. Critical Alerting
+            # 4. Critical Alerting (Bug 3: No longer silent)
             try:
                 alert_mgr.send_alert(
                     title=f"[ALERT] THREAT DETECTED",
@@ -191,7 +195,8 @@ def log_worker():
                     channels=[AlertChannel.CONSOLE],
                     metadata=ai_res
                 )
-            except: pass
+            except Exception as e:
+                print(f"   [ERROR] Alert delivery failed for {incident_id}: {e}")
 
             # 5. Save Raw JSON
             with open(incident_dir / "incident.json", 'w') as f:
@@ -219,15 +224,28 @@ def on_suspicious_command(command: str, process_info: dict):
     now = time.time()
     proc_name = process_info.get('name', 'Unknown')
     
-    # Deduplication
-    if cmd_key in recent_commands and (now - recent_commands[cmd_key]) < 0.5:
+    # Deduplication (Bug 9: Increased to 2.0s via Constant)
+    if cmd_key in recent_commands and (now - recent_commands[cmd_key]) < DEDUPLICATION_WINDOW:
         sys.stdout.write(".") 
         sys.stdout.flush()
-        detections += 1
+        # detections += 1  # REMOVED: Don't increment detection counter for deduplicated events
         return
     
     recent_commands[cmd_key] = now
     
+    # FIXED: Whitelist Checks BEFORE incrementing counter (Bug 10)
+    # 1. Ignore if it's our own process (SIEM/SIEM communication)
+    if process_info.get('pid') == MY_PID:
+        return
+        
+    # 2. Ignore if ShadowNet is the PARENT (our own evidence collection)
+    if process_info.get('parent_pid') == MY_PID:
+        return
+
+    # 3. Double safety for snapshot commands
+    if "evidence\\emergency_snapshots" in command and ("shadownet_realtime.py" in command.lower() or "shadownet" in str(process_info.get('name', '')).lower()):
+        return
+
     # FIXED: Robust Keyword Matching Logic
     matched_keywords = []
     cmd_lower = command.lower()
@@ -241,22 +259,11 @@ def on_suspicious_command(command: str, process_info: dict):
     if not matched_keywords:
         return 
     
-    print(f"\n⚡ DETECTION: {proc_name} matched keywords {matched_keywords}")
-        
-    # FIXED: Whitelist Filter (More Specific)
-    # 1. Ignore if it's our own process (SIEM/SIEM communication)
-    if process_info.get('pid') == MY_PID:
-        return
-        
-    # 2. Ignore if ShadowNet is the PARENT (our own evidence collection)
-    if process_info.get('parent_pid') == MY_PID:
-        return
-
-    # 3. Double safety for snapshot commands
-    if "evidence\\emergency_snapshots" in command and ("shadownet_realtime.py" in command.lower() or "shadownet" in str(process_info.get('name', '')).lower()):
-        return
-
+    # Increment detections only after passing whitelist
     detections += 1
+    
+    print(f"\n⚡ DETECTION: {proc_name} matched keywords {matched_keywords}")
+    
     is_critical = True # Any keyword match is now considered critical for speed
     
     print(f"\n{'='*80}")
@@ -281,20 +288,15 @@ def on_suspicious_command(command: str, process_info: dict):
     # 2. Spawn ASYNC Analysis (Background)
     print(f"📡 Dispatching to Gemini AI for deep analysis (Async)...")
     
-    # FIXED: Race Condition synchronization
-    task_event = threading.Event()
+    # Removed task_event race condition (Bug 1)
     
     incident_queue.put({
         'command': command,
         'matched_keywords': matched_keywords,
         'process_info': process_info,
         'is_critical': is_critical,
-        'snapshot_id': snapshot_id,
-        'task_event': task_event
+        'snapshot_id': snapshot_id
     })
-    
-    # Evidence capture is already done by now in foreground
-    task_event.set()
     
     print(f"{'='*80}\n")
 
@@ -311,8 +313,7 @@ def on_behavioral_alert(alert_data: dict):
         'ai_res': alert_data.get('ai_analysis', {}),
         'process_info': alert_data['process_info'],
         'is_critical': True,
-        'snapshot_id': 'N/A',
-        'task_event': None
+        'snapshot_id': 'N/A'
     })
 
 # --- Start System ---
@@ -332,9 +333,15 @@ if __name__ == "__main__":
     # Using 'enable_file_monitoring' as proxy or we can add a new key. 
     # Let's assume enable_file_monitoring covers this for now or add a specific check.
     if monitoring_config.get('enable_file_monitoring', True): 
-        behavior_guard = BehavioralMonitor(analyzer=behavior_analyzer, callback=on_behavioral_alert)
+        # FIXED: Pass simulation flag from config (Bug 11)
+        sim_enabled = monitoring_config.get('enable_behavioral_simulation', False)
+        behavior_guard = BehavioralMonitor(
+            analyzer=behavior_analyzer, 
+            callback=on_behavioral_alert,
+            enable_simulation=sim_enabled
+        )
         behavior_guard.start_monitoring()
-        print("   [OK] Behavioral Guard: ACTIVE")
+        print(f"   [OK] Behavioral Guard: ACTIVE (Simulation: {'ON' if sim_enabled else 'OFF'})")
     else:
         print("   [--] Behavioral Guard: DISABLED (Config)")
     print(f"Platform: {evidence_collector.os_type.upper()}")
@@ -354,7 +361,7 @@ if __name__ == "__main__":
         print("\n\n⏹️  Initiating Secure Shutdown...")
         monitor.stop_monitoring()
         incident_queue.put(None)
-        worker_thread.join(timeout=5)
+        worker_thread.join(timeout=SHUTDOWN_TIMEOUT)
         print("\n👋 ShadowNet v4.0 shutdown complete\n")
     except Exception as e:
         print(f"\n❌ Fatal Error: {e}")

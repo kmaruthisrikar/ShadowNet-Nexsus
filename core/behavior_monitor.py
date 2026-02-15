@@ -8,7 +8,13 @@ import threading
 import random
 import statistics
 from datetime import datetime
-from typing import Callable, List, Dict, Any
+from typing import Callable, List, Dict, Any, Optional
+
+# --- Constants (Bug 14) ---
+BEHAVIOR_CHECK_INTERVAL = 1.0  # seconds
+STDEV_THRESHOLD = 20           # ms
+SIMULATION_PROBABILITY = 0.01  # 1%
+JOIN_TIMEOUT = 1.0             # seconds
 
 class BehavioralMonitor:
     """
@@ -16,9 +22,10 @@ class BehavioralMonitor:
     Analyzes keystroke dynamics to distinguish Humans from Bots/Keyloggers.
     """
     
-    def __init__(self, analyzer, callback: Callable):
+    def __init__(self, analyzer, callback: Callable, enable_simulation: bool = False):
         self.analyzer = analyzer
         self.callback = callback
+        self.enable_simulation = enable_simulation # Bug 11
         self.monitoring = False
         self.monitor_thread = None
         self.sample_window = []
@@ -34,7 +41,7 @@ class BehavioralMonitor:
     def stop_monitoring(self):
         self.monitoring = False
         if self.monitor_thread:
-            self.monitor_thread.join(timeout=1)
+            self.monitor_thread.join(timeout=JOIN_TIMEOUT)
 
     def _monitor_loop(self):
         """
@@ -45,13 +52,10 @@ class BehavioralMonitor:
         print("   ⚡ Behavioral Guard: watching input streams...")
         
         while self.monitoring:
-            time.sleep(1) # Check interval
+            time.sleep(BEHAVIOR_CHECK_INTERVAL)
             
-            # ------------------------------------------------------------------
-            # DEMO LOGIC: Spontaneously simulate a "suspicious" input burst
-            # In production, replace this with actual keyboard hook
-            # ------------------------------------------------------------------
-            if random.random() < 0.01: # Reduced to 1% to keep terminal clean
+            # FIXED: Only run simulation if explicitly enabled (Bug 11)
+            if self.enable_simulation and random.random() < SIMULATION_PROBABILITY:
                 self._run_analysis_simulation()
     
     def _run_analysis_simulation(self):
@@ -68,10 +72,10 @@ class BehavioralMonitor:
         # 2. Analyze
         try:
             stdev = statistics.stdev(timings)
-        except:
+        except Exception as e:
             stdev = 100
         
-        if stdev < 20: # Suspiciously regular
+        if stdev < STDEV_THRESHOLD: # Suspiciously regular
             # Only print if it's a confirmed "threat" in our simulation
             # AI verification (Mocked for speed or called for real)
             result = self.analyzer.analyze_keystroke_pattern(timings)

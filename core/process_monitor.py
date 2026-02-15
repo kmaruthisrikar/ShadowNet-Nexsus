@@ -14,6 +14,14 @@ import platform
 import subprocess
 import ctypes
 
+# --- Constants (Bug 14) ---
+WMI_TIMEOUT_MS = 500       # Improved stability (Bug 5)
+POLLING_INTERVAL = 0.01    # 10ms (Windows fallback)
+UNIX_POLLING_INTERVAL = 0.005 # 5ms (Unix primary)
+WMI_PULSE_INTERVAL = 20    # seconds
+MAX_HISTORY = 100
+WMI_DELAY_SECS = 1
+
 def is_admin():
     try:
         if platform.system().lower() == 'windows':
@@ -48,7 +56,7 @@ class BaseProcessMonitor:
         self.monitoring = False
         self.processes_detected = 0
         self.suspicious_detected = 0
-        self.command_history = deque(maxlen=100)
+        self.command_history = deque(maxlen=MAX_HISTORY)
         self.os_type = platform.system().lower()
 
     def start_monitoring(self):
@@ -74,7 +82,7 @@ class BaseProcessMonitor:
             try:
                 self.callback(command, process_info)
             except Exception as e:
-                print(f"⚠️  Callback error: {str(e)}")
+                print(f"⚠️  [WARN] Callback error: {e}")
 
         self.command_history.append({
             'timestamp': datetime.now().isoformat(),
@@ -142,12 +150,12 @@ class WindowsProcessMonitor(BaseProcessMonitor):
             while self.monitoring:
                 try:
                     # Self-Pulse: Verify monitor is hearing things
-                    if time.time() - last_pulse > 20:
+                    if time.time() - last_pulse > WMI_PULSE_INTERVAL:
                         subprocess.Popen(['cmd.exe', '/c', 'echo ShadowNetPulse'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                         last_pulse = time.time()
 
-                    # Use shorter timeout to avoid blocking
-                    new_process = watcher(timeout_ms=100)
+                    # Use stable timeout to avoid blocking (Bug 5)
+                    new_process = watcher(timeout_ms=WMI_TIMEOUT_MS)
                     if new_process:
                         name = str(new_process.Name)
                         pid = new_process.ProcessId
@@ -193,11 +201,11 @@ class WindowsProcessMonitor(BaseProcessMonitor):
                     continue
                 except Exception as e:
                     if self.monitoring:
-                        print(f"\n⚠️  WMI Error: {e}")
+                        print(f"\n⚠️  [WARN] WMI Error: {e}")
                         time.sleep(1) # Prevent tight error loop
                     continue
         except Exception as e:
-            print(f"⚠️ WMI initialization failed: {e}")
+            print(f"⚠️  [ERROR] WMI initialization failed: {e}")
             print("   [FALLBACK] Switching to polling-only mode...")
         finally:
             pythoncom.CoUninitialize()
@@ -249,10 +257,9 @@ class WindowsProcessMonitor(BaseProcessMonitor):
                         continue
             except Exception as e:
                 if self.monitoring:
-                    # Use stderr for internal errors to keep stdout clean
-                    pass
+                    print(f"⚠️  [ERROR] Windows Polling Error: {e}")
             
-            time.sleep(0.01) # 10ms ultra-fast polling
+            time.sleep(POLLING_INTERVAL)
 
 
 class UnixProcessMonitor(BaseProcessMonitor):
@@ -271,7 +278,9 @@ class UnixProcessMonitor(BaseProcessMonitor):
             self.polling_thread.start()
             print(f"⚡ {self.os_type.upper()} Process Monitor: ACTIVE (Polling-Based)")
         else:
-            print(f"❌ {self.os_type.upper()} Monitor Failed: psutil not installed")
+            print(f"❌ [ERROR] {self.os_type.upper()} Monitor Failed: psutil not installed")
+            self.monitoring = False # Properly set to False (Bug 12)
+            return
 
     def _polling_loop(self):
         """
@@ -279,7 +288,8 @@ class UnixProcessMonitor(BaseProcessMonitor):
         Strategy: Only fetch full details for NEW PIDs to minimize I/O overhead.
         Target Latency: ~5ms
         """
-        known_pids = set(psutil.pids())
+        # FIXED: Initialize empty to catch ALL processes on first run (Bug 6)
+        known_pids = set()
         
         while self.monitoring:
             try:
@@ -325,12 +335,11 @@ class UnixProcessMonitor(BaseProcessMonitor):
                 # (handled by reassignment above)
                 
             except Exception as e:
-                # print(f"Poll Error: {e}") 
-                pass
+                if self.monitoring:
+                    print(f"⚠️  [ERROR] Unix Polling Error: {e}")
             
             # Adaptive High-Speed Sleep
-            # If we found something, sleep less. If idle, sleep normal.
-            time.sleep(0.005) # 5ms Latency Target
+            time.sleep(UNIX_POLLING_INTERVAL)
 
 
 def ProcessMonitor(callback: Optional[Callable] = None, suspicious_keywords: List[str] = None):

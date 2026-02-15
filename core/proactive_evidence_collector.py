@@ -14,10 +14,14 @@ from .emergency_snapshot import EmergencySnapshotEngine
 from utils.os_detector import os_detector
 
 
-# Placeholder for HAS_DEPENDENCIES, assuming it's defined elsewhere in the module
-# For this edit, we'll just include the check as requested.
-# In a real scenario, this would be determined by a dependency check function.
-HAS_DEPENDENCIES = True # Assuming true for now to avoid errors, but this should be dynamic
+# FIXED: Dynamic dependency check (Bug 4)
+try:
+    import psutil
+    from .emergency_snapshot import EmergencySnapshotEngine
+    HAS_DEPENDENCIES = True
+except ImportError as e:
+    HAS_DEPENDENCIES = False
+    print(f"⚠️  [WARN] Missing dependencies in ProactiveEvidenceCollector: {e}")
 
 
 class ProactiveEvidenceCollector:

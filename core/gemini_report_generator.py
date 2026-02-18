@@ -13,7 +13,7 @@ from utils.model_selector import model_selector
 
 class GeminiReportGenerator:
     """
-    Let Gemini write professional, court-admissible forensic reports
+    Let Gemini write professional, tamper-evident forensic reports
     """
     
     def __init__(self, api_key: str, model_name: str = 'gemini-2.5-flash'):
@@ -98,7 +98,7 @@ Write a comprehensive technical forensic report including:
    - Brief technical overview
 
 2. **Evidence Summary**
-   - Chain of custody
+   - Chain of evidence trail
    - Evidence integrity verification
    - List of artifacts collected
 

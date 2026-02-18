@@ -1,6 +1,6 @@
 """
 Evidence Vault
-Secure evidence preservation and chain of custody management
+Secure evidence preservation and chain of evidence trail management
 """
 
 import os
@@ -14,7 +14,7 @@ from pathlib import Path
 
 class EvidenceVault:
     """
-    Secure evidence storage with chain of custody tracking
+    Secure evidence storage with chain of evidence trail tracking
     """
     
     def __init__(self, vault_path: str = "./evidence"):
@@ -33,19 +33,19 @@ class EvidenceVault:
         (self.vault_path / "reports").mkdir(exist_ok=True)
         (self.vault_path / "logs").mkdir(exist_ok=True)
         
-        self.chain_of_custody_file = self.vault_path / "chain_of_custody.json"
-        self._init_chain_of_custody()
+        self.chain_of_evidence_trail_file = self.vault_path / "chain_of_evidence_trail.json"
+        self._init_chain_of_evidence_trail()
     
-    def _init_chain_of_custody(self):
-        """Initialize chain of custody log"""
-        if not self.chain_of_custody_file.exists():
-            with open(self.chain_of_custody_file, 'w') as f:
+    def _init_chain_of_evidence_trail(self):
+        """Initialize chain of evidence trail log"""
+        if not self.chain_of_evidence_trail_file.exists():
+            with open(self.chain_of_evidence_trail_file, 'w') as f:
                 json.dump([], f, indent=2)
     
     def preserve_evidence(self, incident_id: str, evidence_data: Dict[str, Any], 
                          evidence_type: str = "general") -> str:
         """
-        Preserve evidence with chain of custody
+        Preserve evidence with chain of evidence trail
         
         Args:
             incident_id: Incident identifier
@@ -70,8 +70,8 @@ class EvidenceVault:
         # Calculate hash for integrity
         evidence_hash = self._calculate_file_hash(evidence_file)
         
-        # Record in chain of custody
-        custody_entry = {
+        # Record in chain of evidence trail
+        evidence_trail_entry = {
             'evidence_id': evidence_id,
             'incident_id': incident_id,
             'evidence_type': evidence_type,
@@ -82,7 +82,7 @@ class EvidenceVault:
             'action': 'evidence_preserved'
         }
         
-        self._add_custody_entry(custody_entry)
+        self._add_evidence_trail_entry(evidence_trail_entry)
         
         return evidence_id
     
@@ -116,8 +116,8 @@ class EvidenceVault:
             # Calculate hash
             artifact_hash = self._calculate_file_hash(dest_file)
             
-            # Record in chain of custody
-            custody_entry = {
+            # Record in chain of evidence trail
+            evidence_trail_entry = {
                 'artifact_id': artifact_id,
                 'incident_id': incident_id,
                 'artifact_type': artifact_type,
@@ -129,7 +129,7 @@ class EvidenceVault:
                 'action': 'artifact_preserved'
             }
             
-            self._add_custody_entry(custody_entry)
+            self._add_evidence_trail_entry(evidence_trail_entry)
             
             return artifact_id
             
@@ -179,17 +179,17 @@ class EvidenceVault:
         
         return evidence_list
     
-    def get_chain_of_custody(self, incident_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_chain_of_evidence_trail(self, incident_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """
-        Get chain of custody records
+        Get chain of evidence trail records library
         
         Args:
             incident_id: Optional incident filter
         
         Returns:
-            Chain of custody entries
+            Chain of evidence trail entries
         """
-        with open(self.chain_of_custody_file, 'r') as f:
+        with open(self.chain_of_evidence_trail_file, 'r') as f:
             all_entries = json.load(f)
         
         if incident_id:
@@ -215,9 +215,9 @@ class EvidenceVault:
                     # Calculate current hash
                     current_hash = self._calculate_file_hash(evidence_file)
                     
-                    # Get original hash from chain of custody
-                    custody = self.get_chain_of_custody()
-                    for entry in custody:
+                    # Get original hash from chain of evidence trail
+                    evidence_trail = self.get_chain_of_evidence_trail()
+                    for entry in evidence_trail:
                         if entry.get('evidence_id') == evidence_id:
                             original_hash = entry.get('hash_sha256')
                             return current_hash == original_hash
@@ -232,15 +232,15 @@ class EvidenceVault:
                 sha256_hash.update(byte_block)
         return sha256_hash.hexdigest()
     
-    def _add_custody_entry(self, entry: Dict[str, Any]):
-        """Add entry to chain of custody"""
-        with open(self.chain_of_custody_file, 'r') as f:
-            custody = json.load(f)
+    def _add_evidence_trail_entry(self, entry: Dict[str, Any]):
+        """Add entry to chain of evidence trail"""
+        with open(self.chain_of_evidence_trail_file, 'r') as f:
+            evidence_trail = json.load(f)
         
-        custody.append(entry)
+        evidence_trail.append(entry)
         
-        with open(self.chain_of_custody_file, 'w') as f:
-            json.dump(custody, f, indent=2)
+        with open(self.chain_of_evidence_trail_file, 'w') as f:
+            json.dump(evidence_trail, f, indent=2)
     
     def save_report(self, incident_id: str, report_content: str, 
                    report_type: str = "technical") -> str:
@@ -267,8 +267,8 @@ class EvidenceVault:
             with open(report_file, 'rb') as f:
                 file_hash = hashlib.sha256(f.read()).hexdigest()
             
-            # Record in chain of custody
-            self._add_custody_entry({
+            # Record in chain of evidence trail
+            self._add_evidence_trail_entry({
                 'evidence_id': f"REP-{timestamp.strftime('%Y%m%d-%H%M%S')}",
                 'incident_id': incident_id,
                 'evidence_type': report_type,
@@ -292,5 +292,5 @@ class EvidenceVault:
             'total_artifacts': len(artifacts),
             'total_reports': len(reports),
             'vault_path': str(self.vault_path),
-            'chain_of_custody_entries': len(self.get_chain_of_custody())
+            'chain_of_evidence_trail_entries': len(self.get_chain_of_evidence_trail())
         }

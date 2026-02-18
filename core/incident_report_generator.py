@@ -72,7 +72,7 @@ class IncidentReportGenerator:
                      archive_base = incident_dir / "RAW_EVIDENCE_SNAPSHOT"
                      archive_path = shutil.make_archive(str(archive_base), 'zip', str(snapshot_dir))
                      
-                     # Preserve in vault as artifact (This populates evidence/artifacts AND chain_of_custody.json)
+                     # Preserve in vault as artifact (This populates evidence/artifacts AND chain_of_evidence_trail.json)
                      vault.preserve_file_artifact(incident_id, archive_path, artifact_type="snapshot_archive")
                      print(f"   📦 Evidence Artifact Preserved: {Path(archive_path).name}")
         except Exception as e:
@@ -180,7 +180,7 @@ A **{threat_type.replace('_', ' ').title()}** attack was detected and neutralize
 ### Evidence Types Preserved
 {self._format_evidence_types(incident_data.get('evidence_types', []))}
 
-### Chain of Custody
+### Chain of Evidence Trail
 - **Captured By**: ShadowNet Nexus Proactive Evidence Collector
 - **Capture Method**: Emergency Snapshot (Pre-Execution)
 - **Integrity**: SHA-256 hashed
@@ -296,7 +296,7 @@ This incident demonstrates the effectiveness of proactive evidence preservation.
 
 **Key Takeaways:**
 1. ✅ Attack detected within milliseconds
-2. ✅ Evidence preserved before destruction
+2. ✅ Evidence preserved before removal
 3. ✅ Complete forensic timeline available
 4. ✅ Threat actor identified with high confidence
 

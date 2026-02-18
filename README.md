@@ -11,7 +11,7 @@
 **Architecture:** Hybrid Event-Driven + AI-Powered Detection System  
 **Target Environment:** Windows, Linux, and macOS (Official v4.0 Universal Support)  
 **Scale:** Production-Ready, High-Volume Attack Detection  
-**Forensic Integrity:** Court-Admissible Evidence Collection
+**Forensic Integrity:** Tamper-Evident Evidence Collection
 
 ---
 
@@ -324,7 +324,7 @@ wevtutil qe Security /c:10      # Recent 10 events
 **Forensic Integrity**:
 - All files are SHA-256 hashed
 - Timestamps preserved (creation, modification, access)
-- Chain of custody JSON metadata
+- Chain of evidence trail JSON metadata
 - Read-only mode after capture
 - Original file permissions preserved
 
@@ -358,16 +358,16 @@ def analyze_keystroke_pattern(self, keystroke_timings: List[int]):
 
 ---
 
-### 5. Evidence Vault & Chain of Custody (`utils/evidence_vault.py`)
+### 5. Evidence Vault & Chain of Evidence Trail (utils/evidence_vault.py)
 
 **Purpose**: Secure preservation and legal admissibility assurance.
 
 **Key Features**:
 *   **Cryptographic Hashing**: Every report and artifact is SHA-256 hashed immediately upon creation.
-*   **Tamper-Evident Logs**: All actions are recorded in `evidence/chain_of_custody.json`.
+*   **Tamper-Evident Logs**: All actions are recorded in `evidence/chain_of_evidence_trail.json`.
 *   **Automated Packaging**: Raw evidence snapshots are automatically zipped and stored in `evidence/artifacts`.
 
-**Chain of Custody Record Format**:
+**Chain of Evidence Trail Record Format**:
 ```json
 {
   "evidence_id": "REP-20260208-233225",
@@ -386,7 +386,7 @@ def analyze_keystroke_pattern(self, keystroke_timings: List[int]):
 2.  **Package**: Folder zipped to `RAW_EVIDENCE_SNAPSHOT.zip`.
 3.  **Hash**: SHA-256 calculated for the zip archive.
 4.  **Vault**: Zip moved to `evidence/artifacts/<IncidentID>/`.
-5.  **Log**: Entry added to Chain of Custody.
+5.  **Log**: Entry added to Chain of Evidence Trail.
 - **Coefficient of Variation**: Human > 0.3, Bot < 0.1
 
 **User Activity Baseline**:
@@ -596,7 +596,7 @@ def should_capture(self, command: str) -> Optional[dict]:
 │  Forensic Integrity:                             │
 │  • SHA-256 hash per file                         │
 │  • Immutable storage (read-only)                 │
-│  • Chain of custody JSON                         │
+│  • Chain of evidence trail JSON                  │
 │  • Original timestamps preserved                 │
 └───────────────────────────────────────────────────┘
 ```
@@ -750,7 +750,7 @@ if ai_response.get('error'):
 
 ## 💾 Evidence Preservation System
 
-### Chain of Custody Implementation
+### Chain of Evidence Trail Implementation
 
 **Metadata Schema**:
 ```json
@@ -817,7 +817,7 @@ evidence/
 │   └── shadownet.log
 ├── reports/                      # Forensic reports
 │   └── INC-20260208-213742_forensic_20260208-213742.md
-└── chain_of_custody.json         # Master ledger
+└── chain_of_evidence_trail.json         # Master ledger
 ```
 
 ### Forensic Integrity Guarantees
@@ -830,7 +830,7 @@ evidence/
 **Hashing**:
 - SHA-256 for all files (cryptographic integrity)
 - Hash verification before and after storage
-- Hash chain in chain_of_custody.json
+- Hash chain in chain_of_evidence_trail.json
 
 **Timestamps**:
 - Original file timestamps preserved (MAC times)

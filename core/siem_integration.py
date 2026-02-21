@@ -130,7 +130,7 @@ class SIEMIntegration:
         enriched = {
             'timestamp': event_data.get('timestamp', datetime.now().isoformat()),
             'source': 'ShadowNet Nexus',
-            'source_version': '3.0.0',
+            'source_version': '4.0.0',
             'event_type': event_data.get('type', 'unknown'),
             'severity': event_data.get('severity', 'INFO'),
             'hostname': socket.gethostname(),
@@ -331,7 +331,7 @@ class SIEMIntegration:
     def _format_as_leef(self, event_data: Dict[str, Any]) -> str:
         """Format event as LEEF (Log Event Extended Format) for QRadar"""
         # LEEF:Version|Vendor|Product|Version|EventID|
-        leef = f"LEEF:2.0|ShadowNet|Nexus|3.0|{event_data.get('type', 'unknown')}|"
+        leef = f"LEEF:2.0|ShadowNet|Nexus|4.0|{event_data.get('type', 'unknown')}|"
         
         # Add key-value pairs
         fields = []
@@ -357,7 +357,7 @@ class SIEMIntegration:
             },
             'observer': {
                 'name': 'ShadowNet Nexus',
-                'version': '3.0.0'
+                'version': '4.0.0'
             },
             'threat': {
                 'indicator': event_data.get('threat_indicators', [])
@@ -370,7 +370,7 @@ class SIEMIntegration:
         # CEF:Version|Device Vendor|Device Product|Device Version|Signature ID|Name|Severity|Extension
         severity = self._map_severity_to_cef(event_data.get('severity', 'INFO'))
         
-        cef = f"CEF:0|ShadowNet|Nexus|3.0|{event_data.get('type', 'unknown')}|{event_data.get('title', 'Security Event')}|{severity}|"
+        cef = f"CEF:0|ShadowNet|Nexus|4.0|{event_data.get('type', 'unknown')}|{event_data.get('title', 'Security Event')}|{severity}|"
         
         # Add extensions
         extensions = []

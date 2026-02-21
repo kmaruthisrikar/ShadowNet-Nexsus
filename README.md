@@ -156,19 +156,6 @@ class ProcessMonitor:
             self.start_wmi_monitor()  # Instant Event-driven
         else:
             self.start_unix_monitor() # High-frequency polling
-
-### 2. Behavioral Guard (`core/behavior_monitor.py`)
-
-**Purpose**: Detects non-process based anomalies (Keyloggers, Bot inputs).
-
-**Technical Implementation**:
-- **Jitter Analysis**: Calculates Standard Deviation of keystroke timings.
-- **Thresholds**: 
-  - `< 10ms variance`: Flagged as MECHANICAL/BOT
-  - `> 50ms variance`: Classified as HUMAN
-- **AI Verification**: Sends suspicious patterns to Gemini for 2nd opinion.
-            self.start_unix_monitor() # High-frequency polling
-```
         
         # Subscribe to process creation events
         self.process_watcher = self.wmi_connection.Win32_Process.watch_for("creation")
@@ -201,7 +188,20 @@ class ProcessMonitor:
 
 ---
 
-### 2. Gemini Command Analyzer (`core/gemini_command_analyzer.py`)
+### 2. Behavioral Guard (`core/behavior_monitor.py`)
+
+**Purpose**: Detects non-process based anomalies (Keyloggers, Bot inputs).
+
+**Technical Implementation**:
+- **Jitter Analysis**: Calculates Standard Deviation of keystroke timings.
+- **Thresholds**: 
+  - `< 10ms variance`: Flagged as MECHANICAL/BOT
+  - `> 50ms variance`: Classified as HUMAN
+- **AI Verification**: Sends suspicious patterns to Gemini for 2nd opinion.
+
+---
+
+### 3. Gemini Command Analyzer (`core/gemini_command_analyzer.py`)
 
 **Purpose**: AI-powered command analysis for threat detection and classification
 
@@ -263,7 +263,7 @@ class GeminiCommandAnalyzer:
 
 ---
 
-### 3. Emergency Snapshot Engine (`core/emergency_snapshot.py`)
+### 4. Emergency Snapshot Engine (`core/emergency_snapshot.py`)
 
 **Purpose**: Ultra-fast evidence capture (<100ms) before anti-forensics execution
 
@@ -330,7 +330,7 @@ wevtutil qe Security /c:10      # Recent 10 events
 
 ---
 
-### 4. Behavioral Analyzer (`core/gemini_behavior_analyzer.py`)
+### 5. Behavioral Analyzer (`core/gemini_behavior_analyzer.py`)
 
 **Purpose**: Detect automated/bot activity and user behavior anomalies
 
@@ -355,10 +355,11 @@ def analyze_keystroke_pattern(self, keystroke_timings: List[int]):
 **Statistical Analysis**:
 - **Standard Deviation**: Human > 50ms, Bot < 10ms
 - **Mean Interval**: Human 150-200ms, Bot < 50ms
+- **Coefficient of Variation**: Human > 0.3, Bot < 0.1
 
 ---
 
-### 5. Evidence Vault & Chain of Evidence Trail (utils/evidence_vault.py)
+### 6. Evidence Vault & Chain of Evidence Trail (`utils/evidence_vault.py`)
 
 **Purpose**: Secure preservation and legal admissibility assurance.
 
@@ -387,7 +388,6 @@ def analyze_keystroke_pattern(self, keystroke_timings: List[int]):
 3.  **Hash**: SHA-256 calculated for the zip archive.
 4.  **Vault**: Zip moved to `evidence/artifacts/<IncidentID>/`.
 5.  **Log**: Entry added to Chain of Evidence Trail.
-- **Coefficient of Variation**: Human > 0.3, Bot < 0.1
 
 **User Activity Baseline**:
 ```python
@@ -419,7 +419,7 @@ def analyze_command_sequence(self, command_sequence: List[str]):
 
 ---
 
-### 5. Proactive Evidence Collector (`core/proactive_evidence_collector.py`)
+### 7. Proactive Evidence Collector (`core/proactive_evidence_collector.py`)
 
 **Purpose**: Capture evidence BEFORE anti-forensics commands can destroy it
 

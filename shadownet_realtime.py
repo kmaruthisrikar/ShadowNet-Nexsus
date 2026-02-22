@@ -124,8 +124,10 @@ snapshots = 0
 incidents = 0
 threat_log = []
 incident_queue = queue.Queue()
-recent_commands = {} # For deduplication: {command_key: last_time}
+recent_commands = {}  # For deduplication: {command_key: last_time}
+recent_commands_lock = threading.Lock()  # Bug 5: thread-safe access
 MY_PID = os.getpid()
+monitor = None  # Bug 1: initialize to None so shutdown is always safe
 
 def log_worker() -> None:  # Added type hints (Bug 15)
     """Background thread to process incident reports and snapshots without blocking detection"""
@@ -219,20 +221,24 @@ def on_suspicious_command(command: str, process_info: dict):
     """Handle suspicious command with v4.0 Logic and Deduplication Imaging"""
     global detections, recent_commands, keywords
     
-    # Deduplication (Anti-Spam)
+    # Deduplication (Anti-Spam) — Bug 5 Fix: thread-safe + auto-pruning
     cmd_key = f"{process_info.get('name')}:{command}"
     now = time.time()
     proc_name = process_info.get('name', 'Unknown')
-    
-    # Deduplication (Bug 9: Increased to 2.0s via Constant)
-    if cmd_key in recent_commands and (now - recent_commands[cmd_key]) < DEDUPLICATION_WINDOW:
-        sys.stdout.write(".") 
-        sys.stdout.flush()
-        # detections += 1  # REMOVED: Don't increment detection counter for deduplicated events
-        return
-    
-    recent_commands[cmd_key] = now
-    
+
+    with recent_commands_lock:
+        # Prune stale entries to prevent unbounded memory growth
+        stale_keys = [k for k, t in recent_commands.items() if now - t > DEDUPLICATION_WINDOW * 10]
+        for k in stale_keys:
+            del recent_commands[k]
+
+        if cmd_key in recent_commands and (now - recent_commands[cmd_key]) < DEDUPLICATION_WINDOW:
+            sys.stdout.write(".")
+            sys.stdout.flush()
+            return
+
+        recent_commands[cmd_key] = now
+
     # FIXED: Whitelist Checks BEFORE incrementing counter (Bug 10)
     # 1. Ignore if it's our own process (SIEM/SIEM communication)
     if process_info.get('pid') == MY_PID:
@@ -307,10 +313,12 @@ def on_behavioral_alert(alert_data: dict):
     print(f"   AI Verdict: {alert_data['ai_analysis'].get('input_type', 'Unknown')}")
     
     # Push to same incident queue
+    # Bug 4 Fix: key was 'ai_res' but log_worker re-analyzes via ai_analyzer;
+    # store pre-computed result in a consistent place for logging
     incident_queue.put({
         'command': alert_data['command'],
         'matched_keywords': ['behavioral_anomaly'],
-        'ai_res': alert_data.get('ai_analysis', {}),
+        'pre_analyzed': alert_data.get('ai_analysis', {}),  # stored for audit
         'process_info': alert_data['process_info'],
         'is_critical': True,
         'snapshot_id': 'N/A'
@@ -359,7 +367,9 @@ if __name__ == "__main__":
 
     except KeyboardInterrupt:
         print("\n\n⏹️  Initiating Secure Shutdown...")
-        monitor.stop_monitoring()
+        # Bug 1 Fix: monitor may be None if process monitoring was disabled in config
+        if monitor is not None:
+            monitor.stop_monitoring()
         incident_queue.put(None)
         worker_thread.join(timeout=SHUTDOWN_TIMEOUT)
         print("\n👋 ShadowNet v4.0 shutdown complete\n")

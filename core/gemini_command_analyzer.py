@@ -186,7 +186,15 @@ Respond with a JSON array of objects, one per command.
         
         try:
             response = self.model.generate_content(prompt)
-            results = json.loads(response.text.strip())
+            # Bug 8 Fix: strip markdown code fences before parsing
+            response_text = response.text.strip()
+            if response_text.startswith('```json'):
+                response_text = response_text[7:]
+            if response_text.startswith('```'):
+                response_text = response_text[3:]
+            if response_text.endswith('```'):
+                response_text = response_text[:-3]
+            results = json.loads(response_text.strip())
             return results
         except Exception as e:
             # Fallback to individual analysis

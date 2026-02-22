@@ -7,6 +7,7 @@ import os
 import json
 import hashlib
 import shutil
+import threading
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from pathlib import Path
@@ -34,6 +35,7 @@ class EvidenceVault:
         (self.vault_path / "logs").mkdir(exist_ok=True)
         
         self.chain_of_evidence_trail_file = self.vault_path / "chain_of_evidence_trail.json"
+        self._trail_lock = threading.Lock()  # Bug 6 Fix: protect concurrent writes
         self._init_chain_of_evidence_trail()
     
     def _init_chain_of_evidence_trail(self):
@@ -233,14 +235,16 @@ class EvidenceVault:
         return sha256_hash.hexdigest()
     
     def _add_evidence_trail_entry(self, entry: Dict[str, Any]):
-        """Add entry to chain of evidence trail"""
-        with open(self.chain_of_evidence_trail_file, 'r') as f:
-            evidence_trail = json.load(f)
-        
-        evidence_trail.append(entry)
-        
-        with open(self.chain_of_evidence_trail_file, 'w') as f:
-            json.dump(evidence_trail, f, indent=2)
+        """Add entry to chain of evidence trail (thread-safe)"""
+        # Bug 6 Fix: Lock ensures only one thread reads/writes the file at a time
+        with self._trail_lock:
+            with open(self.chain_of_evidence_trail_file, 'r') as f:
+                evidence_trail = json.load(f)
+
+            evidence_trail.append(entry)
+
+            with open(self.chain_of_evidence_trail_file, 'w') as f:
+                json.dump(evidence_trail, f, indent=2)
     
     def save_report(self, incident_id: str, report_content: str, 
                    report_type: str = "technical") -> str:
@@ -262,22 +266,20 @@ class EvidenceVault:
         with open(report_file, 'w', encoding='utf-8') as f:
             f.write(report_content)
             
-        if report_type == "forensic":
-            # Calculate hash for CoC
-            with open(report_file, 'rb') as f:
-                file_hash = hashlib.sha256(f.read()).hexdigest()
-            
-            # Record in chain of evidence trail
-            self._add_evidence_trail_entry({
-                'evidence_id': f"REP-{timestamp.strftime('%Y%m%d-%H%M%S')}",
-                'incident_id': incident_id,
-                'evidence_type': report_type,
-                'timestamp': timestamp.isoformat(),
-                'file_path': str(report_file),
-                'hash_sha256': file_hash,
-                'collected_by': 'ShadowNet Nexus',
-                'action': 'report_generated'
-            })
+        # Bug 9 Fix: Log ALL report types in evidence trail, not just 'forensic'
+        with open(report_file, 'rb') as f:
+            file_hash = hashlib.sha256(f.read()).hexdigest()
+
+        self._add_evidence_trail_entry({
+            'evidence_id': f"REP-{timestamp.strftime('%Y%m%d-%H%M%S')}",
+            'incident_id': incident_id,
+            'evidence_type': report_type,
+            'timestamp': timestamp.isoformat(),
+            'file_path': str(report_file),
+            'hash_sha256': file_hash,
+            'collected_by': 'ShadowNet Nexus',
+            'action': 'report_generated'
+        })
         
         return str(report_file)
     

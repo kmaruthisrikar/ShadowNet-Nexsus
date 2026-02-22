@@ -10,11 +10,10 @@ from datetime import datetime
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 
-from .emergency_snapshot import EmergencySnapshotEngine
 from utils.os_detector import os_detector
 
-
-# FIXED: Dynamic dependency check (Bug 4)
+# Bug 3 Fix: single conditional import — removed the unconditional top-level
+# import that bypassed the HAS_DEPENDENCIES guard.
 try:
     import psutil
     from .emergency_snapshot import EmergencySnapshotEngine
@@ -40,21 +39,16 @@ class ProactiveEvidenceCollector:
             capture_network: Whether to capture network connections during a snapshot
             suspicious_keywords: List of keywords from config.yaml to monitor
         """
-        print(f"[DEBUG] ProactiveEvidenceCollector.__init__ called with enabled={enabled}")
-        
         self.evidence_vault_path = evidence_vault_path
         self.suspicious_keywords = suspicious_keywords or []
-        
+
         # Initialize dependencies
         if not HAS_DEPENDENCIES:
             print("❌ ProactiveEvidenceCollector: Missing OS dependencies")
-            
+
         # Allow evidence collection even without admin, but with limited capabilities
         self.has_admin = os_detector.is_admin
-        print(f"[DEBUG] has_admin={self.has_admin}")
-        
         self.enabled = enabled  # Always enabled if requested
-        print(f"[DEBUG] self.enabled set to {self.enabled}")
         
         self.snapshot_engine = EmergencySnapshotEngine(evidence_vault_path, capture_network=capture_network)
         self.os_type = os_detector.os_type
@@ -213,16 +207,9 @@ class ProactiveEvidenceCollector:
         Returns:
             Snapshot ID if captured, None otherwise
         """
-        print(f"\n[DEBUG] capture_before_execution called")
-        print(f"[DEBUG] Command: {command}")
-        print(f"[DEBUG] Enabled: {self.enabled}")
-        
         threat_info = self.should_capture(command)
-        
-        print(f"[DEBUG] Threat info: {threat_info}")
-        
+
         if not threat_info:
-            print(f"[DEBUG] No threat info, returning None")
             return None
         
         print(f"\n🚨 PROACTIVE CAPTURE TRIGGERED!")
@@ -231,15 +218,12 @@ class ProactiveEvidenceCollector:
         print(f"   Command: {command}")
         
         try:
-            print(f"[DEBUG] Calling snapshot_engine.emergency_snapshot...")
             # Execute emergency snapshot
             snapshot_id = self.snapshot_engine.emergency_snapshot(
                 threat_type=threat_info['threat_type'],
                 command=command,
                 process_info=process_info
             )
-            
-            print(f"[DEBUG] Snapshot ID returned: {snapshot_id}")
             
             # Update statistics
             self.snapshots_taken += 1

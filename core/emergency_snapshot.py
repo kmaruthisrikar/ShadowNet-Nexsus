@@ -220,9 +220,13 @@ class EmergencySnapshotEngine:
         try:
             # Export unified log
             output_file = logs_dir / "system.log"
-            subprocess.run([
-                'log', 'show', '--last', '1h'
-            ], stdout=open(output_file, 'w'), timeout=5)
+            # Bug 2 Fix: use context manager so file handle is always properly closed
+            with open(output_file, 'w') as log_out:
+                subprocess.run(
+                    ['log', 'show', '--last', '1h'],
+                    stdout=log_out,
+                    timeout=5
+                )
         except Exception as e:
             print(f"   ⚠️  [WARN] Mac log snapshot failed: {e}")
     
